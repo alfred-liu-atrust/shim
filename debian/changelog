@@ -1,11 +1,11 @@
-shim (0~20120906.bcd0a4e8-0ubuntu2) UNRELEASED; urgency=low
+shim (0~20120906.bcd0a4e8-0ubuntu2) quantal; urgency=low
 
   * debian/patches/prototypes: Include missing prototypes, and disable
     use of BIO_new_file.
   * Only build the package for amd64; we're not signing an i386 shim at this
     stage so there's no point in building it.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 04 Oct 2012 17:46:11 +0000
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 04 Oct 2012 17:47:04 +0000
 
 shim (0~20120906.bcd0a4e8-0ubuntu1) quantal; urgency=low
 
