@@ -4,10 +4,4 @@
 	dh $@
 
 override_dh_auto_build: cert.h
-	dh_auto_build -- EFI_PATH=/usr/lib
-
-cert.h: cert.der
-	echo 'static UINT8 vendor_cert[] = {' > $@.new
-	od -tx1 -w12 cert.der | cut -b9- | sed -e's/\([0-9a-f][0-9a-f]\)/0x\1,/g' >> $@.new
-	echo '};' >> $@.new
-	mv $@.new $@
+	dh_auto_build -- EFI_PATH=/usr/lib VENDOR_CERT_FILE=cert.der

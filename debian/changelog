@@ -1,7 +1,7 @@
-shim (0~20120728.3df9e294-0ubuntu1) UNRELEASED; urgency=low
+shim (0~20120906.bcd0a4e8-0ubuntu1) UNRELEASED; urgency=low
 
   * Initial release.
   * Include the Canonical Secure Boot master CA (cert.der) and include as
     cert.h at build time.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 29 Aug 2012 15:51:10 -0700
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 03 Oct 2012 23:02:45 -0700
