@@ -3,5 +3,5 @@
 %:
 	dh $@
 
-override_dh_auto_build: cert.h
-	dh_auto_build -- EFI_PATH=/usr/lib VENDOR_CERT_FILE=cert.der
+override_dh_auto_build:
+	dh_auto_build -- EFI_PATH=/usr/lib VENDOR_CERT_FILE=debian/canonical-uefi-ca.der
