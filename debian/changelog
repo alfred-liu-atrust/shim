@@ -1,6 +1,6 @@
-shim (0~20120906.bcd0a4e8-0ubuntu1) UNRELEASED; urgency=low
+shim (0~20120906.bcd0a4e8-0ubuntu1) quantal; urgency=low
 
   * Initial release.
   * Include the Canonical Secure Boot master CA.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 03 Oct 2012 23:02:45 -0700
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 04 Oct 2012 00:01:06 -0700
