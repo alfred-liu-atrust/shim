@@ -40,7 +40,7 @@
 #include "shim.h"
 #include "signature.h"
 
-#define SECOND_STAGE L"\\grubx64.efi"
+#define SECOND_STAGE L"\\grub.efi"
 
 static EFI_SYSTEM_TABLE *systab;
 static EFI_STATUS (EFIAPI *entry_point) (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table);
