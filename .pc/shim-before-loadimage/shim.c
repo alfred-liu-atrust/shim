@@ -879,27 +879,6 @@ EFI_STATUS init_grub(EFI_HANDLE image_handle)
 		goto done;
 	}
 
-	efi_status = load_grub(li, &data, &datasize, PathName);
-
-	if (efi_status != EFI_SUCCESS) {
-		Print(L"Failed to load grub\n");
-		goto load_image_fallback;
-	}
-
-	CopyMem(&li_bak, li, sizeof(li_bak));
-
-	efi_status = handle_grub(data, datasize, li);
-
-	if (efi_status == EFI_SUCCESS) {
-		efi_status = uefi_call_wrapper(entry_point, 3, image_handle, systab);
-		CopyMem(li, &li_bak, sizeof(li_bak));
-		goto done;
-	}
-
-	Print(L"Failed to load grub\n");
-	CopyMem(li, &li_bak, sizeof(li_bak));
-
-load_image_fallback:
 	efi_status = uefi_call_wrapper(BS->LoadImage, 6, FALSE, image_handle,
 				       grubpath, NULL, 0, &grub_handle);
 
@@ -910,8 +889,29 @@ load_image_fallback:
 		efi_status = uefi_call_wrapper(BS->StartImage, 3, grub_handle, NULL,
 					       NULL);
 		uefi_call_wrapper(BS->UnloadImage, 1, grub_handle);
+		goto done;
 	}
 
+	efi_status = load_grub(li, &data, &datasize, PathName);
+
+	if (efi_status != EFI_SUCCESS) {
+		Print(L"Failed to load grub\n");
+		goto done;
+	}
+
+	CopyMem(&li_bak, li, sizeof(li_bak));
+
+	efi_status = handle_grub(data, datasize, li);
+
+	if (efi_status != EFI_SUCCESS) {
+		Print(L"Failed to load grub\n");
+		CopyMem(li, &li_bak, sizeof(li_bak));
+		goto done;
+	}
+
+	efi_status = uefi_call_wrapper(entry_point, 3, image_handle, systab);
+
+	CopyMem(li, &li_bak, sizeof(li_bak));
 done:
 
 	return efi_status;

@@ -1,3 +1,12 @@
+shim (0~20120906.bcd0a4e8-0ubuntu4) UNRELEASED; urgency=low
+
+  * debian/patches/shim-before-loadimage: Use direct verification first
+    before LoadImage.  Addresses an issue where Lenovo's SecureBoot
+    implementation pops an error message on any verification failure - avoid
+    calling LoadImage at all unless we have to.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 10 Oct 2012 15:23:08 -0700
+
 shim (0~20120906.bcd0a4e8-0ubuntu3) quantal; urgency=low
 
   * debian/patches/second-stage-path: Chainload grubx64.efi, not
