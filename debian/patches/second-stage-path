@@ -5,14 +5,16 @@ Description: Chainload grubx64.efi, not grub.efi
  anyway, not grub.efi.)
 Author: Steve Langasek <steve.langasek@ubuntu.com>
 
---- shim-0~20120906.bcd0a4e8.orig/shim.c
-+++ shim-0~20120906.bcd0a4e8/shim.c
-@@ -40,7 +40,7 @@
- #include "shim.h"
- #include "signature.h"
+Index: shim/shim.c
+===================================================================
+--- shim.orig/shim.c
++++ shim/shim.c
+@@ -42,7 +42,7 @@
+ #include "netboot.h"
+ #include "shim_cert.h"
  
 -#define SECOND_STAGE L"\\grub.efi"
 +#define SECOND_STAGE L"\\grubx64.efi"
+ #define MOK_MANAGER L"\\MokManager.efi"
  
  static EFI_SYSTEM_TABLE *systab;
- static EFI_STATUS (EFIAPI *entry_point) (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table);

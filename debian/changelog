@@ -1,3 +1,11 @@
+shim (0.2+20121127.9c0c64eb-0ubuntu1) UNRELEASED; urgency=low
+
+  * New upstream snapshot.
+  * Drop debian/patches/shim-before-loadimage; upstream has changed this to
+    not call loadimage at all.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 12 Dec 2012 16:36:12 -0800
+
 shim (0~20120906.bcd0a4e8-0ubuntu4) quantal-proposed; urgency=low
 
   * debian/patches/shim-before-loadimage: Use direct verification first
