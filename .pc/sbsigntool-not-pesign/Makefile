@@ -88,8 +88,8 @@ Cryptlib/OpenSSL/libopenssl.a:
 		-j .debug_line -j .debug_str -j .debug_ranges \
 		--target=efi-app-$(ARCH) $^ $@.debug
 
-%.efi.signed: %.efi shim.crt
-	sbsign --key shim.key --cert shim.crt $<
+%.efi.signed: %.efi certdb/secmod.db
+	pesign -n certdb -i $< -c "shim" -s -o $@ -f
 
 clean:
 	$(MAKE) -C Cryptlib clean

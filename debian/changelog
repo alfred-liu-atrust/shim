@@ -3,6 +3,8 @@ shim (0.2+20121127.9c0c64eb-0ubuntu1) UNRELEASED; urgency=low
   * New upstream snapshot.
   * Drop debian/patches/shim-before-loadimage; upstream has changed this to
     not call loadimage at all.
+  * debian/patches/sbsigntool-not-pesign: Sign MokManager with
+    sbsigntool instead of pesign.
 
  -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 12 Dec 2012 16:36:12 -0800
 

@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
 XSBC-Original-Maintainer: Steve Langasek <vorlon@debian.org>
 Standards-Version: 3.9.3
-Build-Depends: debhelper (>= 9), gnu-efi
+Build-Depends: debhelper (>= 9), gnu-efi, sbsigntool
 Vcs-Bzr: lp:ubuntu/shim
 
 Package: shim
