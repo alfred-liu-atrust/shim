@@ -5,35 +5,41 @@ SUBDIRS		= Cryptlib
 LIB_PATH	= /usr/lib64
 
 EFI_INCLUDE	= /usr/include/efi
-EFI_INCLUDES	= -nostdinc -ICryptlib -ICryptlib/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol 
+EFI_INCLUDES	= -nostdinc -ICryptlib -ICryptlib/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol
 EFI_PATH	= /usr/lib64/gnuefi
 
 LIB_GCC		= $(shell $(CC) -print-libgcc-file-name)
 EFI_LIBS	= -lefi -lgnuefi --start-group Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a --end-group $(LIB_GCC) 
 
 EFI_CRT_OBJS 	= $(EFI_PATH)/crt0-efi-$(ARCH).o
-EFI_LDS		= $(EFI_PATH)/elf_$(ARCH)_efi.lds
+EFI_LDS		= elf_$(ARCH)_efi.lds
 
-CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
-		  -Wall -mno-red-zone \
+CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
+		  -fshort-wchar -Wall -mno-red-zone -maccumulate-outgoing-args \
+		  -mno-mmx -mno-sse \
 		  $(EFI_INCLUDES)
 ifeq ($(ARCH),x86_64)
-	CFLAGS	+= -DEFI_FUNCTION_WRAPPER
+	CFLAGS	+= -DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI
 endif
 ifneq ($(origin VENDOR_CERT_FILE), undefined)
 	CFLAGS += -DVENDOR_CERT_FILE=\"$(VENDOR_CERT_FILE)\"
 endif
+ifneq ($(origin VENDOR_DBX_FILE), undefined)
+	CFLAGS += -DVENDOR_DBX_FILE=\"$(VENDOR_DBX_FILE)\"
+endif
 
 LDFLAGS		= -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L$(EFI_PATH) -L$(LIB_PATH) -LCryptlib -LCryptlib/OpenSSL $(EFI_CRT_OBJS)
 
-VERSION		= 0.2
+VERSION		= 0.4
 
-TARGET	= shim.efi MokManager.efi.signed
+TARGET	= shim.efi MokManager.efi.signed fallback.efi.signed
 OBJS	= shim.o netboot.o cert.o dbx.o
 KEYS	= shim_cert.h ocsp.* ca.* shim.crt shim.csr shim.p12 shim.pem shim.key
 SOURCES	= shim.c shim.h netboot.c signature.h PeImage.h
 MOK_OBJS = MokManager.o
 MOK_SOURCES = MokManager.c shim.h
+FALLBACK_OBJS = fallback.o
+FALLBACK_SRCS = fallback.c
 
 all: $(TARGET)
 
@@ -65,6 +71,11 @@ dbx.o : dbx.S
 shim.so: $(OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a
 	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS)
 
+fallback.o: $(FALLBACK_SRCS)
+
+fallback.so: $(FALLBACK_OBJS)
+	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS)
+
 MokManager.o: $(SOURCES)
 
 MokManager.so: $(MOK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a
@@ -80,6 +91,7 @@ Cryptlib/OpenSSL/libopenssl.a:
 	objcopy -j .text -j .sdata -j .data \
 		-j .dynamic -j .dynsym  -j .rel \
 		-j .rela -j .reloc -j .eh_frame \
+		-j .vendor_cert \
 		--target=efi-app-$(ARCH) $^ $@
 	objcopy -j .text -j .sdata -j .data \
 		-j .dynamic -j .dynsym  -j .rel \
@@ -94,8 +106,8 @@ Cryptlib/OpenSSL/libopenssl.a:
 clean:
 	$(MAKE) -C Cryptlib clean
 	$(MAKE) -C Cryptlib/OpenSSL clean
-	rm -rf $(TARGET) $(OBJS) $(MOK_OBJS) $(KEYS) certdb
-	rm -f *.debug *.so
+	rm -rf $(TARGET) $(OBJS) $(MOK_OBJS) $(FALLBACK_OBJS) $(KEYS) certdb
+	rm -f *.debug *.so *.efi
 
 GITTAG = $(VERSION)
 
