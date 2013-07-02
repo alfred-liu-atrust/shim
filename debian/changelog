@@ -1,4 +1,4 @@
-shim (0.4-0ubuntu1) UNRELEASED; urgency=low
+shim (0.4-0ubuntu1) saucy; urgency=low
 
   * New upstream release.
   * Drop debian/patches/shim-before-loadimage; upstream has changed this to
@@ -7,7 +7,7 @@ shim (0.4-0ubuntu1) UNRELEASED; urgency=low
     sbsigntool instead of pesign.
   * Add a versioned build-dependency on gnu-efi.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 02 Jul 2013 15:24:08 +0000
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 02 Jul 2013 12:53:24 -0700
 
 shim (0~20120906.bcd0a4e8-0ubuntu4) quantal-proposed; urgency=low
 
