@@ -1,3 +1,9 @@
+shim (0.4-0ubuntu2) UNRELEASED; urgency=low
+
+  * Add missing build-dependency on openssl.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 02 Jul 2013 20:30:34 +0000
+
 shim (0.4-0ubuntu1) saucy; urgency=low
 
   * New upstream release.
