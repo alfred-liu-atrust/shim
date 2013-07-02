@@ -41,12 +41,18 @@
 #include "signature.h"
 #include "netboot.h"
 #include "shim_cert.h"
+#include "ucs2.h"
 
-#define SECOND_STAGE L"\\grubx64.efi"
+#define DEFAULT_LOADER L"\\grubx64.efi"
+#define FALLBACK L"\\fallback.efi"
 #define MOK_MANAGER L"\\MokManager.efi"
 
 static EFI_SYSTEM_TABLE *systab;
 static EFI_STATUS (EFIAPI *entry_point) (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table);
+
+static CHAR16 *second_stage;
+static void *load_options;
+static UINT32 load_options_size;
 
 /*
  * The vendor certificate used for validating the second stage loader
@@ -881,6 +887,10 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 	li->ImageBase = buffer;
 	li->ImageSize = context.ImageSize;
 
+	/* Pass the load options to the second stage loader */
+	li->LoadOptions = load_options;
+	li->LoadOptionsSize = load_options_size;
+
 	if (!entry_point) {
 		Print(L"Invalid entry point\n");
 		FreePool(buffer);
@@ -888,6 +898,66 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 	}
 
 	return EFI_SUCCESS;
+}
+
+static int
+should_use_fallback(EFI_HANDLE image_handle)
+{
+	EFI_GUID loaded_image_protocol = LOADED_IMAGE_PROTOCOL;
+	EFI_LOADED_IMAGE *li;
+	unsigned int pathlen = 0;
+	CHAR16 *bootpath;
+	EFI_FILE_IO_INTERFACE *fio = NULL;
+	EFI_FILE *vh;
+	EFI_FILE *fh;
+	EFI_STATUS rc;
+
+	rc = uefi_call_wrapper(BS->HandleProtocol, 3, image_handle,
+				       &loaded_image_protocol, (void **)&li);
+	if (EFI_ERROR(rc)) {
+		Print(L"Could not get image for bootx64.efi: %d\n", rc);
+		return 0;
+	}
+
+	bootpath = DevicePathToStr(li->FilePath);
+
+	/* Check the beginning of the string and the end, to avoid
+	 * caring about which arch this is. */
+	/* I really don't know why, but sometimes bootpath gives us
+	 * L"\\EFI\\BOOT\\/BOOTX64.EFI".  So just handle that here...
+	 */
+	if (StrnCaseCmp(bootpath, L"\\EFI\\BOOT\\BOOT", 14) &&
+			StrnCaseCmp(bootpath, L"\\EFI\\BOOT\\/BOOT", 15))
+		return 0;
+
+	pathlen = StrLen(bootpath);
+	if (pathlen < 5 || StrCaseCmp(bootpath + pathlen - 4, L".EFI"))
+		return 0;
+
+	rc = uefi_call_wrapper(BS->HandleProtocol, 3, li->DeviceHandle,
+			       &FileSystemProtocol, (void **)&fio);
+	if (EFI_ERROR(rc)) {
+		Print(L"Could not get fio for li->DeviceHandle: %d\n", rc);
+		return 0;
+	}
+	
+	rc = uefi_call_wrapper(fio->OpenVolume, 2, fio, &vh);
+	if (EFI_ERROR(rc)) {
+		Print(L"Could not open fio volume: %d\n", rc);
+		return 0;
+	}
+
+	rc = uefi_call_wrapper(vh->Open, 5, vh, &fh, L"\\EFI\\BOOT" FALLBACK,
+			       EFI_FILE_MODE_READ, 0);
+	if (EFI_ERROR(rc)) {
+		Print(L"Could not open \"\\EFI\\BOOT%s\": %d\n", FALLBACK, rc);
+		uefi_call_wrapper(vh->Close, 1, vh);
+		return 0;
+	}
+	uefi_call_wrapper(fh->Close, 1, fh);
+	uefi_call_wrapper(vh->Close, 1, vh);
+
+	return 1;
 }
 
 /*
@@ -930,7 +1000,8 @@ static EFI_STATUS generate_path(EFI_LOADED_IMAGE *li, CHAR16 *ImagePath,
 	}
 
 	*PathName[0] = '\0';
-	StrCat(*PathName, bootpath);
+	if (StrnCaseCmp(bootpath, ImagePath, StrLen(bootpath)))
+		StrCat(*PathName, bootpath);
 	StrCat(*PathName, ImagePath);
 
 	*grubpath = FileDevicePath(device, *PathName);
@@ -1192,11 +1263,13 @@ EFI_STATUS init_grub(EFI_HANDLE image_handle)
 {
 	EFI_STATUS efi_status;
 
-	efi_status = start_image(image_handle, SECOND_STAGE);
+	if (should_use_fallback(image_handle))
+		efi_status = start_image(image_handle, FALLBACK);
+	else
+		efi_status = start_image(image_handle, second_stage);
 
 	if (efi_status != EFI_SUCCESS)
 		efi_status = start_image(image_handle, MOK_MANAGER);
-done:
 
 	return efi_status;
 }
@@ -1263,7 +1336,8 @@ EFI_STATUS check_mok_request(EFI_HANDLE image_handle)
 	EFI_STATUS efi_status;
 
 	if (check_var(L"MokNew") || check_var(L"MokSB") ||
-	    check_var(L"MokPW") || check_var(L"MokAuth")) {
+	    check_var(L"MokPW") || check_var(L"MokAuth") ||
+	    check_var(L"MokDel")) {
 		efi_status = start_image(image_handle, MOK_MANAGER);
 
 		if (efi_status != EFI_SUCCESS) {
@@ -1312,6 +1386,84 @@ static EFI_STATUS check_mok_sb (void)
 	return status;
 }
 
+/*
+ * Check the load options to specify the second stage loader
+ */
+EFI_STATUS set_second_stage (EFI_HANDLE image_handle)
+{
+	EFI_STATUS status;
+	EFI_LOADED_IMAGE *li;
+	CHAR16 *start = NULL, *c;
+	int i, remaining_size = 0;
+	CHAR16 *loader_str = NULL;
+	int loader_len = 0;
+
+	second_stage = DEFAULT_LOADER;
+	load_options = NULL;
+	load_options_size = 0;
+
+	status = uefi_call_wrapper(BS->HandleProtocol, 3, image_handle,
+				   &LoadedImageProtocol, (void **) &li);
+	if (status != EFI_SUCCESS) {
+		Print (L"Failed to get load options\n");
+		return status;
+	}
+
+	/* Expect a CHAR16 string with at least one CHAR16 */
+	if (li->LoadOptionsSize < 4 || li->LoadOptionsSize % 2 != 0) {
+		return EFI_BAD_BUFFER_SIZE;
+	}
+	c = (CHAR16 *)(li->LoadOptions + (li->LoadOptionsSize - 2));
+	if (*c != L'\0') {
+		return EFI_BAD_BUFFER_SIZE;
+	}
+
+	/*
+	 * UEFI shell copies the whole line of the command into LoadOptions.
+	 * We ignore the string before the first L' ', i.e. the name of this
+	 * program.
+	 */
+	for (i = 0; i < li->LoadOptionsSize; i += 2) {
+		c = (CHAR16 *)(li->LoadOptions + i);
+		if (*c == L' ') {
+			*c = L'\0';
+			start = c + 1;
+			remaining_size = li->LoadOptionsSize - i - 2;
+			break;
+		}
+	}
+
+	if (!start || remaining_size <= 0)
+		return EFI_SUCCESS;
+
+	for (i = 0; start[i] != '\0'; i++) {
+		if (start[i] == L' ' || start[i] == L'\0')
+			break;
+		loader_len++;
+	}
+
+	/*
+	 * Setup the name of the alternative loader and the LoadOptions for
+	 * the loader
+	 */
+	if (loader_len > 0) {
+		loader_str = AllocatePool((loader_len + 1) * sizeof(CHAR16));
+		if (!loader_str) {
+			Print(L"Failed to allocate loader string\n");
+			return EFI_OUT_OF_RESOURCES;
+		}
+		for (i = 0; i < loader_len; i++)
+			loader_str[i] = start[i];
+		loader_str[loader_len] = L'\0';
+
+		second_stage = loader_str;
+		load_options = start;
+		load_options_size = remaining_size;
+	}
+
+	return EFI_SUCCESS;
+}
+
 EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
@@ -1333,6 +1485,9 @@ EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	 * Ensure that gnu-efi functions are available
 	 */
 	InitializeLib(image_handle, systab);
+
+	/* Set the second stage loader */
+	set_second_stage (image_handle);
 
 	/*
 	 * Check whether the user has configured the system to run in
@@ -1377,6 +1532,12 @@ EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	 */
 	uefi_call_wrapper(BS->UninstallProtocolInterface, 3, handle,
 			  &shim_lock_guid, &shim_lock_interface);
+
+	/*
+	 * Free the space allocated for the alternative 2nd stage loader
+	 */
+	if (load_options_size > 0)
+		FreePool(second_stage);
 
 	return efi_status;
 }

@@ -1,14 +1,15 @@
-shim (0.2+20121127.9c0c64eb-0ubuntu1) UNRELEASED; urgency=low
+shim (0.4-0ubuntu1) UNRELEASED; urgency=low
 
-  * New upstream snapshot.
+  * New upstream release.
   * Drop debian/patches/shim-before-loadimage; upstream has changed this to
     not call loadimage at all.
   * debian/patches/sbsigntool-not-pesign: Sign MokManager with
     sbsigntool instead of pesign.
   * Add a versioned build-dependency on gnu-efi; we need features only found
     in 3.0k to build the netboot support.
+  * New upstream release.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 12 Dec 2012 16:36:12 -0800
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 02 Jul 2013 15:24:08 +0000
 
 shim (0~20120906.bcd0a4e8-0ubuntu4) quantal-proposed; urgency=low
 

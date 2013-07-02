@@ -9,12 +9,12 @@ Index: shim/shim.c
 ===================================================================
 --- shim.orig/shim.c
 +++ shim/shim.c
-@@ -42,7 +42,7 @@
- #include "netboot.h"
+@@ -43,7 +43,7 @@
  #include "shim_cert.h"
+ #include "ucs2.h"
  
--#define SECOND_STAGE L"\\grub.efi"
-+#define SECOND_STAGE L"\\grubx64.efi"
+-#define DEFAULT_LOADER L"\\grub.efi"
++#define DEFAULT_LOADER L"\\grubx64.efi"
+ #define FALLBACK L"\\fallback.efi"
  #define MOK_MANAGER L"\\MokManager.efi"
  
- static EFI_SYSTEM_TABLE *systab;
