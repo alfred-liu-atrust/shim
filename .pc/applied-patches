@@ -1,3 +1,4 @@
 prototypes
 second-stage-path
 sbsigntool-not-pesign
+no-output-by-default.patch

@@ -1,0 +1,51 @@
+Description: Don't print any informational messages
+ Unless the operation has failed, we shouldn't print anything at all while
+ booting.  Suppress informational messages about the current SecureBoot
+ policy or how the image's signature was verified.
+Author: Steve Langasek <steve.langasek@canonical.com>
+Bug-Ubuntu: https://bugs.launchpad.net/bugs/1074302
+
+Index: shim/shim.c
+===================================================================
+--- shim.orig/shim.c
++++ shim/shim.c
+@@ -430,7 +430,6 @@
+ 
+ 	/* FIXME - more paranoia here? */
+ 	if (status != EFI_SUCCESS || sb != 1) {
+-		Print(L"Secure boot not enabled\n");
+ 		return FALSE;
+ 	}
+ 
+@@ -438,7 +437,6 @@
+ 			      (void *)&setupmode);
+ 
+ 	if (status == EFI_SUCCESS && setupmode == 1) {
+-		Print(L"Platform is in setup mode\n");
+ 		return FALSE;
+ 	}
+ 
+@@ -698,7 +696,6 @@
+ 	status = check_whitelist(cert, sha256hash, sha1hash);
+ 
+ 	if (status == EFI_SUCCESS) {
+-		Print(L"Binary is whitelisted\n");
+ 		return status;
+ 	}
+ 
+@@ -710,7 +707,6 @@
+ 			       shim_cert, sizeof(shim_cert), sha256hash,
+ 			       SHA256_DIGEST_SIZE)) {
+ 		status = EFI_SUCCESS;
+-		Print(L"Binary is verified by the vendor certificate\n");
+ 		return status;
+ 	}
+ 
+@@ -723,7 +719,6 @@
+ 			       vendor_cert, vendor_cert_size, sha256hash,
+ 			       SHA256_DIGEST_SIZE)) {
+ 		status = EFI_SUCCESS;
+-		Print(L"Binary is verified by the vendor certificate\n");
+ 		return status;
+ 	}
+ 

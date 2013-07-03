@@ -430,6 +430,7 @@ static BOOLEAN secure_mode (void)
 
 	/* FIXME - more paranoia here? */
 	if (status != EFI_SUCCESS || sb != 1) {
+		Print(L"Secure boot not enabled\n");
 		return FALSE;
 	}
 
@@ -437,6 +438,7 @@ static BOOLEAN secure_mode (void)
 			      (void *)&setupmode);
 
 	if (status == EFI_SUCCESS && setupmode == 1) {
+		Print(L"Platform is in setup mode\n");
 		return FALSE;
 	}
 
@@ -696,6 +698,7 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 	status = check_whitelist(cert, sha256hash, sha1hash);
 
 	if (status == EFI_SUCCESS) {
+		Print(L"Binary is whitelisted\n");
 		return status;
 	}
 
@@ -707,6 +710,7 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 			       shim_cert, sizeof(shim_cert), sha256hash,
 			       SHA256_DIGEST_SIZE)) {
 		status = EFI_SUCCESS;
+		Print(L"Binary is verified by the vendor certificate\n");
 		return status;
 	}
 
@@ -719,6 +723,7 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 			       vendor_cert, vendor_cert_size, sha256hash,
 			       SHA256_DIGEST_SIZE)) {
 		status = EFI_SUCCESS;
+		Print(L"Binary is verified by the vendor certificate\n");
 		return status;
 	}
 
