@@ -1,3 +1,9 @@
+shim (0.4-0ubuntu3) UNRELEASED; urgency=low
+
+  * Install MokManager.efi.signed in the package.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 03 Jul 2013 12:01:56 -0700
+
 shim (0.4-0ubuntu2) saucy; urgency=low
 
   * Add missing build-dependency on openssl.

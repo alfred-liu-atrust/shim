@@ -1,1 +1,2 @@
 shim.efi /usr/lib/shim
+MokManager.efi.signed /usr/lib/shim
