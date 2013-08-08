@@ -652,6 +652,7 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 	unsigned int size = datasize;
 
 	if (context->SecDir->Size == 0) {
+		Print(L"Empty security header\n");
 		return EFI_INVALID_PARAMETER;
 	}
 

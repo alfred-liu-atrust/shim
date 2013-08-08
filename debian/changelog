@@ -1,8 +1,14 @@
 shim (0.4-0ubuntu3) UNRELEASED; urgency=low
 
+  [ Steve Langasek ]
   * Install MokManager.efi.signed in the package.
   * debian/patches/no-output-by-default.patch: Don't print any
     informational messages.  Closes LP: #1074302.
+
+  [ Stéphane Graber ]
+  * debian/patches/no-print-on-unsigned: Don't print an error message when
+    validating an unsigned binary as that tends to hang Lenovo machines.
+    (LP: #1087501)
 
  -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 03 Jul 2013 12:02:12 -0700
 
