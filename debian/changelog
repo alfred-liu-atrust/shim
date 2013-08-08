@@ -1,4 +1,4 @@
-shim (0.4-0ubuntu3) UNRELEASED; urgency=low
+shim (0.4-0ubuntu3) saucy; urgency=low
 
   [ Steve Langasek ]
   * Install MokManager.efi.signed in the package.
@@ -10,7 +10,7 @@ shim (0.4-0ubuntu3) UNRELEASED; urgency=low
     validating an unsigned binary as that tends to hang Lenovo machines.
     (LP: #1087501)
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 03 Jul 2013 12:02:12 -0700
+ -- Stéphane Graber <stgraber@ubuntu.com>  Thu, 08 Aug 2013 17:12:12 +0200
 
 shim (0.4-0ubuntu2) saucy; urgency=low
 
