@@ -53,7 +53,7 @@ static inline unsigned short int __swap16(unsigned short int x)
 
 static EFI_PXE_BASE_CODE *pxe;
 static EFI_IP_ADDRESS tftp_addr;
-static UINT8 *full_path;
+static char *full_path;
 
 
 typedef struct {
@@ -111,7 +111,7 @@ try_again:
 	for (i=0; i < (bs / sizeof(EFI_HANDLE)); i++) {
 		status = uefi_call_wrapper(BS->OpenProtocol, 6, hbuf[i],
 					   &pxe_base_code_protocol,
-					   (void **)&pxe, image_handle, NULL,
+					   &pxe, image_handle, NULL,
 					   EFI_OPEN_PROTOCOL_GET_PROTOCOL);
 
 		if (status != EFI_SUCCESS) {
@@ -261,9 +261,9 @@ static BOOLEAN extract_tftp_info(char *url)
 		return FALSE;
 	memset(full_path, 0, strlen((UINT8 *)end)+strlen((UINT8 *)template));
 	memcpy(full_path, end, strlen((UINT8 *)end));
-	end = strrchr((char *)full_path, '/');
+	end = strrchr(full_path, '/');
 	if (!end)
-		end = (char *)full_path;
+		end = full_path;
 	memcpy(end, template, strlen((UINT8 *)template));
 
 	return TRUE;
@@ -297,7 +297,7 @@ static EFI_STATUS parseDhcp4()
 
 	memcpy(tmp, template, 12);
 	tmp[13] = '\0';
-	full_path = (UINT8 *)tmp;
+	full_path = tmp;
 
 	/* Note we don't capture the filename option here because we know its shim.efi
 	 * We instead assume the filename at the end of the path is going to be grubx64.efi

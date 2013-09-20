@@ -5,3 +5,4 @@ no-output-by-default.patch
 no-print-on-unsigned
 fix-tftp-prototype
 build-with-Werror
+fix-compiler-warnings
