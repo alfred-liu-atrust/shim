@@ -1,4 +1,4 @@
-Description: Buiild with -Werror to catch future prototype mismatches.
+Description: Build with -Werror to catch future prototype mismatches.
 Author: Steve Langasek <steve.langasek@ubuntu.com>
 
 Index: shim/Makefile
