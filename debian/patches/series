@@ -6,3 +6,4 @@ no-print-on-unsigned
 fix-tftp-prototype
 build-with-Werror
 fix-compiler-warnings
+tftp-proper-nul-termination

@@ -227,15 +227,15 @@ static UINT8 *str2ip6(char *str)
 
 static BOOLEAN extract_tftp_info(char *url)
 {
-	CHAR8 *start, *end;
+	char *start, *end;
 	char ip6str[128];
-	CHAR8 *template = (CHAR8 *)"/grubx64.efi";
+	char *template = "/grubx64.efi";
 
 	if (strncmp((UINT8 *)url, (UINT8 *)"tftp://", 7)) {
 		Print(L"URLS MUST START WITH tftp://\n");
 		return FALSE;
 	}
-	start = (CHAR8 *)url + 7;
+	start = url + 7;
 	if (*start != '[') {
 		Print(L"TFTP SERVER MUST BE ENCLOSED IN [..]\n");
 		return FALSE;
@@ -250,19 +250,21 @@ static BOOLEAN extract_tftp_info(char *url)
 		Print(L"TFTP SERVER MUST BE ENCLOSED IN [..]\n");
 		return FALSE;
 	}
+	*end = '\0';
 	memset(ip6str, 0, 128);
-	memcpy(ip6str, start, end - start);
+	memcpy(ip6str, start, strlen((UINT8 *)start));
+	*end = ']';
 	end++;
 	memcpy(&tftp_addr.v6, str2ip6(ip6str), 16);
-	full_path = AllocateZeroPool(strlen(end)+strlen(template)+1);
+	full_path = AllocatePool(strlen((UINT8 *)end)+strlen((UINT8 *)template)+1);
 	if (!full_path)
 		return FALSE;
-	memcpy(full_path, end, strlen(end));
-	end = (CHAR8 *)strrchr((char *)full_path, '/');
+	memset(full_path, 0, strlen((UINT8 *)end)+strlen((UINT8 *)template));
+	memcpy(full_path, end, strlen((UINT8 *)end));
+	end = strrchr((char *)full_path, '/');
 	if (!end)
-		end = (CHAR8 *)full_path;
-	memcpy(end, template, strlen(template));
-	end[strlen(template)] = '\0';
+		end = (char *)full_path;
+	memcpy(end, template, strlen((UINT8 *)template));
 
 	return TRUE;
 }
@@ -283,15 +285,19 @@ static EFI_STATUS parseDhcp6()
 
 static EFI_STATUS parseDhcp4()
 {
-	CHAR8 *template = (CHAR8 *)"/grubx64.efi";
-	full_path = AllocateZeroPool(strlen(template)+1);
+	char *template = "/grubx64.efi";
+	char *tmp = AllocatePool(16);
 
-	if (!full_path)
+
+	if (!tmp)
 		return EFI_OUT_OF_RESOURCES;
+
 
 	memcpy(&tftp_addr.v4, pxe->Mode->DhcpAck.Dhcpv4.BootpSiAddr, 4);
 
-	memcpy(full_path, template, strlen(template));
+	memcpy(tmp, template, 12);
+	tmp[13] = '\0';
+	full_path = (UINT8 *)tmp;
 
 	/* Note we don't capture the filename option here because we know its shim.efi
 	 * We instead assume the filename at the end of the path is going to be grubx64.efi
