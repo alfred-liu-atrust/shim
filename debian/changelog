@@ -1,3 +1,10 @@
+shim (0.4-0ubuntu4) UNRELEASED; urgency=low
+
+  * debian/patches/fix-tftp-prototype: pass the right arguments to
+    EFI_PXE_BASE_CODE_TFTP_READ_FILE.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 20 Sep 2013 14:43:23 +0000
+
 shim (0.4-0ubuntu3) saucy; urgency=low
 
   [ Steve Langasek ]
