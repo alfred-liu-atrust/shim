@@ -1,4 +1,4 @@
-shim (0.4-0ubuntu4) UNRELEASED; urgency=low
+shim (0.4-0ubuntu4) saucy; urgency=low
 
   * debian/patches/fix-tftp-prototype: pass the right arguments to
     EFI_PXE_BASE_CODE_TFTP_READ_FILE.
@@ -11,7 +11,7 @@ shim (0.4-0ubuntu4) UNRELEASED; urgency=low
   * debian/patches/netboot-cleanup: roll-up of miscellaneous fixes to
     the netboot code.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 20 Sep 2013 14:43:23 +0000
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 23 Sep 2013 00:30:00 -0700
 
 shim (0.4-0ubuntu3) saucy; urgency=low
 
