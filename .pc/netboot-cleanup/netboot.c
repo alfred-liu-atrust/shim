@@ -141,11 +141,11 @@ try_again:
 	return rc;
 }
 
-static CHAR8 *get_v6_bootfile_url(EFI_PXE_BASE_CODE_DHCPV6_PACKET *pkt)
+static char *get_v6_bootfile_url(EFI_PXE_BASE_CODE_DHCPV6_PACKET *pkt)
 {
 	void *optr;
 	EFI_DHCP6_PACKET_OPTION *option;
-	CHAR8 *url;
+	char *url;
 	UINT32 urllen;
 
 	optr = pkt->DhcpOptions;
@@ -159,9 +159,10 @@ static CHAR8 *get_v6_bootfile_url(EFI_PXE_BASE_CODE_DHCPV6_PACKET *pkt)
 		if (ntohs(option->OpCode) == 59) {
 			/* This is the bootfile url option */
 			urllen = ntohs(option->Length);
-			url = AllocateZeroPool(urllen+1);
+			url = AllocatePool(urllen+2);
 			if (!url)
 				return NULL;
+			memset(url, 0, urllen+2);
 			memcpy(url, option->Data, urllen);
 			return url;
 		}
@@ -224,17 +225,17 @@ static UINT8 *str2ip6(char *str)
         return (UINT8 *)ip;
 }
 
-static BOOLEAN extract_tftp_info(CHAR8 *url)
+static BOOLEAN extract_tftp_info(char *url)
 {
 	CHAR8 *start, *end;
-	char ip6str[40];
+	char ip6str[128];
 	CHAR8 *template = (CHAR8 *)"/grubx64.efi";
 
 	if (strncmp((UINT8 *)url, (UINT8 *)"tftp://", 7)) {
 		Print(L"URLS MUST START WITH tftp://\n");
 		return FALSE;
 	}
-	start = url + 7;
+	start = (CHAR8 *)url + 7;
 	if (*start != '[') {
 		Print(L"TFTP SERVER MUST BE ENCLOSED IN [..]\n");
 		return FALSE;
@@ -244,16 +245,12 @@ static BOOLEAN extract_tftp_info(CHAR8 *url)
 	end = start;
 	while ((*end != '\0') && (*end != ']')) {
 		end++;
-		if (end - start > 39) {
-			Print(L"TFTP URL includes malformed IPv6 address\n");
-			return FALSE;
-		}
 	}
 	if (end == '\0') {
 		Print(L"TFTP SERVER MUST BE ENCLOSED IN [..]\n");
 		return FALSE;
 	}
-	memset(ip6str, 0, 40);
+	memset(ip6str, 0, 128);
 	memcpy(ip6str, start, end - start);
 	end++;
 	memcpy(&tftp_addr.v6, str2ip6(ip6str), 16);
@@ -273,16 +270,14 @@ static BOOLEAN extract_tftp_info(CHAR8 *url)
 static EFI_STATUS parseDhcp6()
 {
 	EFI_PXE_BASE_CODE_DHCPV6_PACKET *packet = (EFI_PXE_BASE_CODE_DHCPV6_PACKET *)&pxe->Mode->DhcpAck.Raw;
-	CHAR8 *bootfile_url;
+	char *bootfile_url;
+
 
 	bootfile_url = get_v6_bootfile_url(packet);
+	if (extract_tftp_info(bootfile_url) == FALSE)
+		return EFI_NOT_FOUND;
 	if (!bootfile_url)
 		return EFI_NOT_FOUND;
-	if (extract_tftp_info(bootfile_url) == FALSE) {
-		FreePool(bootfile_url);
-		return EFI_NOT_FOUND;
-	}
-	FreePool(bootfile_url);
 	return EFI_SUCCESS;
 }
 
@@ -355,8 +350,6 @@ try_again:
 		goto try_again;
 	}
 
-	if (rc != EFI_SUCCESS && *buffer) {
-		FreePool(*buffer);
-	}
 	return rc;
+
 }

@@ -34,7 +34,7 @@ Index: shim/netboot.c
  	memset(ip6str, 0, 128);
 -	memcpy(ip6str, start, strlen((UINT8 *)start));
 -	*end = ']';
-+	memcpy(ip6str, start, end + 1 - start);
++	memcpy(ip6str, start, end - start);
  	end++;
  	memcpy(&tftp_addr.v6, str2ip6(ip6str), 16);
 -	full_path = AllocatePool(strlen((UINT8 *)end)+strlen((UINT8 *)template)+1);

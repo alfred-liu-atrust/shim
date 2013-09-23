@@ -8,6 +8,8 @@ shim (0.4-0ubuntu4) UNRELEASED; urgency=low
     warnings in netboot.c.
   * debian/patches/tftp-proper-nul-termination: fix nul termination
     errors in filenames passed to tftp.
+  * debian/patches/netboot-cleanup: roll-up of miscellaneous fixes to
+    the netboot code.
 
  -- Steve Langasek <steve.langasek@ubuntu.com>  Fri, 20 Sep 2013 14:43:23 +0000
 

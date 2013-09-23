@@ -7,3 +7,4 @@ fix-tftp-prototype
 build-with-Werror
 fix-compiler-warnings
 tftp-proper-nul-termination
+netboot-cleanup

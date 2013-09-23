@@ -1,0 +1,106 @@
+Description: roll-up of miscellaneous fixes to the netboot code
+ Pull of various fixes from
+ <https://github.com/vorlonofportland/shim/tree/netboot-cleanup>, currently
+ awaiting merge upstream.
+Author: Steve Langasek <steve.langasek@ubuntu.com>
+
+Index: shim/netboot.c
+===================================================================
+--- shim.orig/netboot.c
++++ shim/netboot.c
+@@ -141,11 +141,11 @@
+ 	return rc;
+ }
+ 
+-static char *get_v6_bootfile_url(EFI_PXE_BASE_CODE_DHCPV6_PACKET *pkt)
++static CHAR8 *get_v6_bootfile_url(EFI_PXE_BASE_CODE_DHCPV6_PACKET *pkt)
+ {
+ 	void *optr;
+ 	EFI_DHCP6_PACKET_OPTION *option;
+-	char *url;
++	CHAR8 *url;
+ 	UINT32 urllen;
+ 
+ 	optr = pkt->DhcpOptions;
+@@ -159,10 +159,9 @@
+ 		if (ntohs(option->OpCode) == 59) {
+ 			/* This is the bootfile url option */
+ 			urllen = ntohs(option->Length);
+-			url = AllocatePool(urllen+2);
++			url = AllocateZeroPool(urllen+1);
+ 			if (!url)
+ 				return NULL;
+-			memset(url, 0, urllen+2);
+ 			memcpy(url, option->Data, urllen);
+ 			return url;
+ 		}
+@@ -225,17 +224,17 @@
+         return (UINT8 *)ip;
+ }
+ 
+-static BOOLEAN extract_tftp_info(char *url)
++static BOOLEAN extract_tftp_info(CHAR8 *url)
+ {
+ 	CHAR8 *start, *end;
+-	char ip6str[128];
++	char ip6str[40];
+ 	CHAR8 *template = (CHAR8 *)"/grubx64.efi";
+ 
+ 	if (strncmp((UINT8 *)url, (UINT8 *)"tftp://", 7)) {
+ 		Print(L"URLS MUST START WITH tftp://\n");
+ 		return FALSE;
+ 	}
+-	start = (CHAR8 *)url + 7;
++	start = url + 7;
+ 	if (*start != '[') {
+ 		Print(L"TFTP SERVER MUST BE ENCLOSED IN [..]\n");
+ 		return FALSE;
+@@ -245,12 +244,16 @@
+ 	end = start;
+ 	while ((*end != '\0') && (*end != ']')) {
+ 		end++;
++		if (end - start > 39) {
++			Print(L"TFTP URL includes malformed IPv6 address\n");
++			return FALSE;
++		}
+ 	}
+ 	if (end == '\0') {
+ 		Print(L"TFTP SERVER MUST BE ENCLOSED IN [..]\n");
+ 		return FALSE;
+ 	}
+-	memset(ip6str, 0, 128);
++	memset(ip6str, 0, 40);
+ 	memcpy(ip6str, start, end - start);
+ 	end++;
+ 	memcpy(&tftp_addr.v6, str2ip6(ip6str), 16);
+@@ -270,14 +273,16 @@
+ static EFI_STATUS parseDhcp6()
+ {
+ 	EFI_PXE_BASE_CODE_DHCPV6_PACKET *packet = (EFI_PXE_BASE_CODE_DHCPV6_PACKET *)&pxe->Mode->DhcpAck.Raw;
+-	char *bootfile_url;
+-
++	CHAR8 *bootfile_url;
+ 
+ 	bootfile_url = get_v6_bootfile_url(packet);
+-	if (extract_tftp_info(bootfile_url) == FALSE)
+-		return EFI_NOT_FOUND;
+ 	if (!bootfile_url)
+ 		return EFI_NOT_FOUND;
++	if (extract_tftp_info(bootfile_url) == FALSE) {
++		FreePool(bootfile_url);
++		return EFI_NOT_FOUND;
++	}
++	FreePool(bootfile_url);
+ 	return EFI_SUCCESS;
+ }
+ 
+@@ -350,6 +355,8 @@
+ 		goto try_again;
+ 	}
+ 
++	if (rc != EFI_SUCCESS && *buffer) {
++		FreePool(*buffer);
++	}
+ 	return rc;
+-
+ }
