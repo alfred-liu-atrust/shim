@@ -1,3 +1,11 @@
+shim (0.4-0ubuntu5) UNRELEASED; urgency=low
+
+  * Install fallback.efi.signed as well, to lay the groundwork for fallback
+    handling (wanted when we have to move a drive between machines, or when
+    the firmware loses its marbles^W nvram).
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Thu, 26 Sep 2013 18:44:56 -0700
+
 shim (0.4-0ubuntu4) saucy; urgency=low
 
   * debian/patches/fix-tftp-prototype: pass the right arguments to
