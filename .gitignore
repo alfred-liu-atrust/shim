@@ -22,3 +22,5 @@ shim_cert.h
 *.so
 *.srl
 *.srl.old
+*.tar.*
+version.c
