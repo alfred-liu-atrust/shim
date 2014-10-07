@@ -93,14 +93,12 @@ void OPENSSL_config(const char *config_name)
 		{
 		BIO *bio_err;
 		ERR_load_crypto_strings();
-#ifndef OPENSSL_NO_STDIO
 		if ((bio_err=BIO_new_fp(stderr, BIO_NOCLOSE)) != NULL)
 			{
 			BIO_printf(bio_err,"Auto configuration failed\n");
 			ERR_print_errors(bio_err);
 			BIO_free(bio_err);
 			}
-#endif
 		exit(1);
 		}
 
