@@ -374,15 +374,11 @@ static EVP_PKEY *openssl_load_privkey(ENGINE *eng, const char *key_id,
 	BIO *in;
 	EVP_PKEY *key;
 	fprintf(stderr, "(TEST_ENG_OPENSSL_PKEY)Loading Private key %s\n", key_id);
-#ifndef OPENSSL_NO_STDIO
 	in = BIO_new_file(key_id, "r");
 	if (!in)
 		return NULL;
 	key = PEM_read_bio_PrivateKey(in, NULL, 0, NULL);
 	BIO_free(in);
-#else
-	return NULL;
-#endif
 	return key;
 	}
 #endif
