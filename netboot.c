@@ -39,7 +39,6 @@
 #include "shim.h"
 #include "netboot.h"
 
-
 static inline unsigned short int __swap16(unsigned short int x)
 {
         __asm__("xchgb %b0,%h0"
@@ -53,7 +52,7 @@ static inline unsigned short int __swap16(unsigned short int x)
 
 static EFI_PXE_BASE_CODE *pxe;
 static EFI_IP_ADDRESS tftp_addr;
-static UINT8 *full_path;
+static CHAR8 *full_path;
 
 
 typedef struct {
@@ -61,6 +60,24 @@ typedef struct {
 	UINT16 Length;
 	UINT8 Data[1];
 } EFI_DHCP6_PACKET_OPTION;
+
+static CHAR8 *
+translate_slashes(char *str)
+{
+	int i;
+	int j;
+	if (str == NULL)
+		return (CHAR8 *)str;
+
+	for (i = 0, j = 0; str[i] != '\0'; i++, j++) {
+		if (str[i] == '\\') {
+			str[j] = '/';
+			if (str[i+1] == '\\')
+				i++;
+		}
+	}
+	return (CHAR8 *)str;
+}
 
 /*
  * usingNetboot
@@ -171,10 +188,10 @@ static CHAR8 *get_v6_bootfile_url(EFI_PXE_BASE_CODE_DHCPV6_PACKET *pkt)
 	return NULL;
 }
 
-static UINT16 str2ns(UINT8 *str)
+static CHAR16 str2ns(CHAR8 *str)
 {
-        UINT16 ret = 0;
-        UINT8 v;
+        CHAR16 ret = 0;
+        CHAR8 v;
         for(;*str;str++) {
                 if ('0' <= *str && *str <= '9')
                         v = *str - '0';
@@ -189,18 +206,18 @@ static UINT16 str2ns(UINT8 *str)
         return htons(ret);
 }
 
-static UINT8 *str2ip6(char *str)
+static CHAR8 *str2ip6(CHAR8 *str)
 {
         UINT8 i, j, p;
 	size_t len;
-        UINT8 *a, *b, t;
+        CHAR8 *a, *b, t;
         static UINT16 ip[8];
 
         for(i=0; i < 8; i++) {
                 ip[i] = 0;
         }
-        len = strlen((UINT8 *)str);
-        a = b = (UINT8 *)str;
+        len = strlen(str);
+        a = b = str;
         for(i=p=0; i < len; i++, b++) {
                 if (*b != ':')
                         continue;
@@ -211,7 +228,7 @@ static UINT8 *str2ip6(char *str)
                 if ( *(b+1) == ':' )
                         break;
         }
-        a = b = (UINT8 *)(str + len);
+        a = b = (str + len);
         for(j=len, p=7; j > i; j--, a--) {
                 if (*a != ':')
                         continue;
@@ -221,14 +238,14 @@ static UINT8 *str2ip6(char *str)
                 *b = t;
                 b = a;
         }
-        return (UINT8 *)ip;
+        return (CHAR8 *)ip;
 }
 
 static BOOLEAN extract_tftp_info(CHAR8 *url)
 {
 	CHAR8 *start, *end;
-	char ip6str[40];
-	CHAR8 *template = (CHAR8 *)"/grubx64.efi";
+	CHAR8 ip6str[40];
+	CHAR8 *template = (CHAR8 *)translate_slashes(DEFAULT_LOADER_CHAR);
 
 	if (strncmp((UINT8 *)url, (UINT8 *)"tftp://", 7)) {
 		Print(L"URLS MUST START WITH tftp://\n");
@@ -288,7 +305,7 @@ static EFI_STATUS parseDhcp6()
 
 static EFI_STATUS parseDhcp4()
 {
-	CHAR8 *template = (CHAR8 *)"/grubx64.efi";
+	CHAR8 *template = (CHAR8 *)DEFAULT_LOADER_CHAR;
 	full_path = AllocateZeroPool(strlen(template)+1);
 
 	if (!full_path)

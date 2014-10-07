@@ -1,3 +1,11 @@
+shim (0.7-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
+    - fix spurious error message when fallback.efi is not present, as will
+      always be the case for removable media.  LP: #1297069.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 06 Oct 2014 15:39:49 -0700
+
 shim (0.4-0ubuntu5) utopic; urgency=low
 
   * Install fallback.efi.signed as well, to lay the groundwork for fallback

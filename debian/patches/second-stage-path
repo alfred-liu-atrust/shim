@@ -5,16 +5,16 @@ Description: Chainload grubx64.efi, not grub.efi
  anyway, not grub.efi.)
 Author: Steve Langasek <steve.langasek@ubuntu.com>
 
-Index: shim/shim.c
+Index: shim/Makefile
 ===================================================================
---- shim.orig/shim.c
-+++ shim/shim.c
-@@ -43,7 +43,7 @@
- #include "shim_cert.h"
- #include "ucs2.h"
+--- shim.orig/Makefile
++++ shim/Makefile
+@@ -14,7 +14,7 @@
+ EFI_CRT_OBJS 	= $(EFI_PATH)/crt0-efi-$(ARCH).o
+ EFI_LDS		= elf_$(ARCH)_efi.lds
  
--#define DEFAULT_LOADER L"\\grub.efi"
-+#define DEFAULT_LOADER L"\\grubx64.efi"
- #define FALLBACK L"\\fallback.efi"
- #define MOK_MANAGER L"\\MokManager.efi"
- 
+-DEFAULT_LOADER	:= \\\\grub.efi
++DEFAULT_LOADER	:= \\\\grubx64.efi
+ CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
+ 		  -fshort-wchar -Wall -Werror -mno-red-zone -maccumulate-outgoing-args \
+ 		  -mno-mmx -mno-sse -fno-builtin \
