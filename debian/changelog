@@ -1,4 +1,4 @@
-shim (0.7-0ubuntu1) UNRELEASED; urgency=medium
+shim (0.7-0ubuntu1) utopic; urgency=medium
 
   * New upstream release.
     - fix spurious error message when fallback.efi is not present, as will
@@ -7,7 +7,7 @@ shim (0.7-0ubuntu1) UNRELEASED; urgency=medium
   * debian/patches/0001-Update-openssl-to-0.9.8za.patch: cherry-pick
     openssl 0.9.8za in via upstream.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 06 Oct 2014 15:39:49 -0700
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 07 Oct 2014 05:40:41 +0000
 
 shim (0.4-0ubuntu5) utopic; urgency=low
 
