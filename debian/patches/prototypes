@@ -1,7 +1,8 @@
 Description: Include missing prototypes, and disable use of BIO_new_file
- Pull in one missing prototype for ScanMem8() that's not yet upstream in
- gnu-efi, and #ifdef out references to BIO_new_file() and BIO_new_fp()
- since the prototypes are themselves #ifdef'ed out.
+ Pull in missing prototypes for functions that are not yet upstream in
+ gnu-efi, and #ifdef out references to BIO_new_file(), BIO_new_fp(), and
+ X509_load_{cert,crl}_file since the prototypes are themselves #ifdef'ed
+ out.
  .
  Without these prototypes, we get implicit conversions on amd64, which
  are sensibly treated as a build failure by Launchpad.
@@ -11,7 +12,7 @@ Index: shim/Cryptlib/Library/BaseMemoryLib.h
 ===================================================================
 --- /dev/null
 +++ shim/Cryptlib/Library/BaseMemoryLib.h
-@@ -0,0 +1,11 @@
+@@ -0,0 +1,41 @@
 +#ifndef __BASE_MEMORY_LIB__
 +#define __BASE_MEMORY_LIB__
 +
@@ -20,6 +21,36 @@ Index: shim/Cryptlib/Library/BaseMemoryLib.h
 +    IN CHAR8          *Buffer,
 +    IN UINTN           Size,
 +    IN CHAR8           Value
++    );
++
++UINT32
++WriteUnaligned32(
++    UINT32            *Buffer,
++    UINT32             Value
++    );
++
++CHAR8 *
++AsciiStrCat(
++    CHAR8             *Destination,
++    CHAR8             *Source
++    );
++
++CHAR8 *
++AsciiStrCpy(
++    CHAR8             *Destination,
++    CHAR8             *Source
++    );
++
++CHAR8 *
++AsciiStrnCpy(
++    CHAR8             *Destination,
++    CHAR8             *Source,
++    UINTN              count
++    );
++
++UINTN
++AsciiStrSize(
++    CHAR8             *string
 +    );
 +
 +#endif
@@ -118,3 +149,43 @@ Index: shim/Cryptlib/OpenSSL/crypto/engine/eng_openssl.c
  	return key;
  	}
  #endif
+Index: shim/Cryptlib/OpenSSL/crypto/x509/by_dir.c
+===================================================================
+--- shim.orig/Cryptlib/OpenSSL/crypto/x509/by_dir.c
++++ shim/Cryptlib/OpenSSL/crypto/x509/by_dir.c
+@@ -92,8 +92,10 @@
+ static int new_dir(X509_LOOKUP *lu);
+ static void free_dir(X509_LOOKUP *lu);
+ static int add_cert_dir(BY_DIR *ctx,const char *dir,int type);
++#ifndef OPENSSL_NO_STDIO
+ static int get_cert_by_subject(X509_LOOKUP *xl,int type,X509_NAME *name,
+ 	X509_OBJECT *ret);
++#endif
+ X509_LOOKUP_METHOD x509_dir_lookup=
+ 	{
+ 	"Load certs from files in a directory",
+@@ -102,7 +104,11 @@
+ 	NULL, 			/* init */
+ 	NULL,			/* shutdown */
+ 	dir_ctrl,		/* ctrl */
++#ifdef OPENSSL_NO_STDIO
++	NULL,			/* get_by_subject */
++#else
+ 	get_cert_by_subject,	/* get_by_subject */
++#endif
+ 	NULL,			/* get_by_issuer_serial */
+ 	NULL,			/* get_by_fingerprint */
+ 	NULL,			/* get_by_alias */
+@@ -242,6 +248,7 @@
+ 	return(1);
+ 	}
+ 
++#ifndef OPENSSL_NO_STDIO
+ static int get_cert_by_subject(X509_LOOKUP *xl, int type, X509_NAME *name,
+ 	     X509_OBJECT *ret)
+ 	{
+@@ -383,3 +390,4 @@
+ 	if (b != NULL) BUF_MEM_free(b);
+ 	return(ok);
+ 	}
++#endif
