@@ -1,3 +1,19 @@
+shim (0.7-0ubuntu3) UNRELEASED; urgency=medium
+
+  * SECURITY UPDATE: heap overflow and out-of-bounds read access when
+    parsing DHCPv6 information
+    - debian/patches/CVE-2014-3675.patch: apply proper bounds checking
+      when parsing data provided in DHCPv6 packets.
+    - CVE-2014-3675
+    - CVE-2014-3676
+  * SECURITY UPDATE: memory corruption when processing user-provided key
+    lists
+    - debian/patches/CVE-2014-3677.patch: detect malformed machine owner
+      key (MOK) lists and ignore them, avoiding possible memory corruption.
+    - CVE-2014-3677
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 07 Oct 2014 23:28:39 -0700
+
 shim (0.7-0ubuntu2) utopic; urgency=medium
 
   * Restore debian/patches/prototypes, which still is needed on shim 0.7
