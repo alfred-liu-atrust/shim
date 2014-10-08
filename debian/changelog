@@ -1,4 +1,4 @@
-shim (0.7-0ubuntu3) UNRELEASED; urgency=medium
+shim (0.7-0ubuntu3) utopic; urgency=medium
 
   * SECURITY UPDATE: heap overflow and out-of-bounds read access when
     parsing DHCPv6 information
@@ -12,7 +12,7 @@ shim (0.7-0ubuntu3) UNRELEASED; urgency=medium
       key (MOK) lists and ignore them, avoiding possible memory corruption.
     - CVE-2014-3677
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 07 Oct 2014 23:28:39 -0700
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Wed, 08 Oct 2014 06:40:40 +0000
 
 shim (0.7-0ubuntu2) utopic; urgency=medium
 
