@@ -1,4 +1,4 @@
-shim (0.7-0ubuntu3) utopic; urgency=medium
+shim (0.7-0ubuntu4) utopic; urgency=medium
 
   * SECURITY UPDATE: heap overflow and out-of-bounds read access when
     parsing DHCPv6 information
