@@ -5,13 +5,17 @@ Description: Sign MokManager with sbsigntool instead of pesign
 Author: Steve Langasek <steve.langasek@canonical.com>
 Forwarded: not-needed
 
-Index: shim/Makefile
+---
+ Makefile |    4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+Index: b/Makefile
 ===================================================================
---- shim.orig/Makefile
-+++ shim/Makefile
-@@ -88,8 +88,8 @@
+--- a/Makefile
++++ b/Makefile
+@@ -144,8 +144,8 @@ FORMAT		?= --target efi-app-$(ARCH)
  		-j .debug_line -j .debug_str -j .debug_ranges \
- 		--target=efi-app-$(ARCH) $^ $@.debug
+ 		$(FORMAT) $^ $@.debug
  
 -%.efi.signed: %.efi certdb/secmod.db
 -	pesign -n certdb -i $< -c "shim" -s -o $@ -f
