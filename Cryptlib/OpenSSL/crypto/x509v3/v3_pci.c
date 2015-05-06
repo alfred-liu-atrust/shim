@@ -157,7 +157,6 @@ static int process_pci_value(CONF_VALUE *val,
 				}
 			OPENSSL_free(tmp_data2);
 			}
-#ifndef OPENSSL_NO_STDIO
 		else if (strncmp(val->value, "file:", 5) == 0)
 			{
 			unsigned char buf[2048];
@@ -195,7 +194,6 @@ static int process_pci_value(CONF_VALUE *val,
 				goto err;
 				}
 			}
-#endif
 		else if (strncmp(val->value, "text:", 5) == 0)
 			{
 			val_len = strlen(val->value + 5);
