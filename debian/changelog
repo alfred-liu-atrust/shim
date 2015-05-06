@@ -1,6 +1,9 @@
 shim (0.8-0ubuntu1) UNRELEASED; urgency=medium
 
   * New upstream release.
+  * debian/patches/CVE-2014-3675.patch, debian/patches/CVE-2014-3677.patch,
+    debian/patches/0001-Update-openssl-to-0.9.8za.patch: dropped, included
+    in the upstream release.
 
  -- Mathieu Trudel-Lapierre <mathieu-tl@ubuntu.com>  Wed, 06 May 2015 09:49:45 -0400
 
