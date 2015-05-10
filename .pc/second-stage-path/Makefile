@@ -18,7 +18,7 @@ EFI_LIBS	= -lefi -lgnuefi --start-group Cryptlib/libcryptlib.a Cryptlib/OpenSSL/
 EFI_CRT_OBJS 	= $(EFI_PATH)/crt0-efi-$(ARCH).o
 EFI_LDS		= elf_$(ARCH)_efi.lds
 
-DEFAULT_LOADER	:= \\\\grubx64.efi
+DEFAULT_LOADER	:= \\\\grub.efi
 CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
 		  -fshort-wchar -Wall -Wsign-compare -Werror -fno-builtin \
 		  -Werror=sign-compare \
@@ -144,8 +144,8 @@ FORMAT		?= --target efi-app-$(ARCH)
 		-j .debug_line -j .debug_str -j .debug_ranges \
 		$(FORMAT) $^ $@.debug
 
-%.efi.signed: %.efi shim.crt
-	sbsign --key shim.key --cert shim.crt $<
+%.efi.signed: %.efi certdb/secmod.db
+	pesign -n certdb -i $< -c "shim" -s -o $@ -f
 
 clean:
 	$(MAKE) -C Cryptlib clean
