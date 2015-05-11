@@ -1,4 +1,4 @@
-shim (0.8-0ubuntu1) UNRELEASED; urgency=medium
+shim (0.8-0ubuntu1) wily; urgency=medium
 
   * New upstream release.
     - Clarify meaning of insecure_mode. (LP: #1384973)
@@ -8,7 +8,7 @@ shim (0.8-0ubuntu1) UNRELEASED; urgency=medium
   * debian/patches/sbsigntool-not-pesign,debian/patches/second-stage-path:
     refreshed.
 
- -- Mathieu Trudel-Lapierre <mathieu-tl@ubuntu.com>  Wed, 06 May 2015 09:49:45 -0400
+ -- Mathieu Trudel-Lapierre <mathieu-tl@ubuntu.com>  Mon, 11 May 2015 19:50:49 -0400
 
 shim (0.7-0ubuntu4) utopic; urgency=medium
 
