@@ -1,3 +1,9 @@
+shim (0.8-0ubuntu2) wily; urgency=medium
+
+  * No-change rebuild against gnu-efi 3.0v-5ubuntu1.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Tue, 12 May 2015 17:48:30 +0000
+
 shim (0.8-0ubuntu1) wily; urgency=medium
 
   * New upstream release.
