@@ -21,8 +21,7 @@ EFI_LDS		= elf_$(ARCH)_efi.lds
 DEFAULT_LOADER	:= \\\\grubx64.efi
 CFLAGS		= -std=gnu89 -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
 		  -fshort-wchar -Wall -Wsign-compare -Werror -fno-builtin \
-		  -Werror=sign-compare -ffreestanding \
-		  -I$(shell $(CC) -print-file-name=include) \
+		  -Werror=sign-compare \
 		  "-DDEFAULT_LOADER=L\"$(DEFAULT_LOADER)\"" \
 		  "-DDEFAULT_LOADER_CHAR=\"$(DEFAULT_LOADER)\"" \
 		  $(EFI_INCLUDES)
@@ -32,13 +31,19 @@ ifneq ($(origin OVERRIDE_SECURITY_POLICY), undefined)
 endif
 
 ifeq ($(ARCH),x86_64)
-	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc \
-		-maccumulate-outgoing-args \
+	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc -maccumulate-outgoing-args \
 		-DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI
 endif
 ifeq ($(ARCH),ia32)
-	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc \
-		-maccumulate-outgoing-args -m32
+	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc -maccumulate-outgoing-args -m32
+endif
+
+ifeq ($(ARCH),aarch64)
+	CFLAGS	+= -ffreestanding -I$(shell $(CC) -print-file-name=include)
+endif
+
+ifeq ($(ARCH),arm)
+	CFLAGS	+= -ffreestanding -I$(shell $(CC) -print-file-name=include)
 endif
 
 ifneq ($(origin VENDOR_CERT_FILE), undefined)
