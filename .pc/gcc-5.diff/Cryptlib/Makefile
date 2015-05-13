@@ -1,7 +1,7 @@
 
 EFI_INCLUDES	= -IInclude -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol
 
-CFLAGS		= -std=gnu89 -ggdb -O0 -I. -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
+CFLAGS		= -ggdb -O0 -I. -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
 		  -Wall $(EFI_INCLUDES)
 
 ifeq ($(ARCH),x86_64)
