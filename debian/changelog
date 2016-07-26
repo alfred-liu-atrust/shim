@@ -1,9 +1,10 @@
 shim (0.9+1465500757.14a5905-0ubuntu1) UNRELEASED; urgency=medium
 
   * New upstream release.
-    - Better handle LoadOptions.
+    - Better handle LoadOptions. (LP: #1581299)
     - Measure state and second stage in TPM.
     - Mirror MokSBState in runtime as MokSBStateRT.
+    - Fix failure to build with GCC 5. (LP: #1429978)
     - Various bug fixes and other improvements.
   * Refreshed patches.
     - Remaining patches:
