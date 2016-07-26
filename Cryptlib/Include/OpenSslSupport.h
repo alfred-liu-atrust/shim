@@ -34,7 +34,7 @@ typedef VOID  *FILE;
 //
 // Map all va_xxxx elements to VA_xxx defined in MdePkg/Include/Base.h
 //
-#if !defined(__CC_ARM) // if va_list is not already defined
+#if !defined(__CC_ARM) || defined(_STDARG_H) // if va_list is not already defined
 /*
  * These are now unconditionally #defined by GNU_EFI's efistdarg.h,
  * so we should #undef them here before providing a new definition.
@@ -47,6 +47,9 @@ typedef VOID  *FILE;
 #define va_arg    VA_ARG
 #define va_start  VA_START
 #define va_end    VA_END
+
+# if !defined(NO_BUILTIN_VA_FUNCS)
+
 typedef __builtin_va_list VA_LIST;
 
 #define VA_START(Marker, Parameter)  __builtin_va_start (Marker, Parameter)
@@ -56,6 +59,78 @@ typedef __builtin_va_list VA_LIST;
 #define VA_END(Marker)               __builtin_va_end (Marker)
 
 #define VA_COPY(Dest, Start)         __builtin_va_copy (Dest, Start)
+
+# else
+
+#define _INT_SIZE_OF(n) ((sizeof (n) + sizeof (UINTN) - 1) &~(sizeof (UINTN) - 1))
+///
+/// Variable used to traverse the list of arguments. This type can vary by
+/// implementation and could be an array or structure.
+///
+typedef CHAR8 *VA_LIST;
+
+/**
+  Retrieves a pointer to the beginning of a variable argument list, based on
+  the name of the parameter that immediately precedes the variable argument list.
+
+  This function initializes Marker to point to the beginning of the variable
+  argument list that immediately follows Parameter.  The method for computing the
+  pointer to the next argument in the argument list is CPU-specific following the
+  EFIAPI ABI.
+
+  @param   Marker       The VA_LIST used to traverse the list of arguments.
+  @param   Parameter    The name of the parameter that immediately precedes
+                        the variable argument list.
+
+  @return  A pointer to the beginning of a variable argument list.
+
+**/
+#define VA_START(Marker, Parameter) (Marker = (VA_LIST) ((UINTN) & (Parameter) + _INT_SIZE_OF (Parameter)))
+
+/**
+  Returns an argument of a specified type from a variable argument list and updates
+  the pointer to the variable argument list to point to the next argument.
+
+  This function returns an argument of the type specified by TYPE from the beginning
+  of the variable argument list specified by Marker.  Marker is then updated to point
+  to the next argument in the variable argument list.  The method for computing the
+  pointer to the next argument in the argument list is CPU-specific following the EFIAPI ABI.
+
+  @param   Marker   VA_LIST used to traverse the list of arguments.
+  @param   TYPE     The type of argument to retrieve from the beginning
+                    of the variable argument list.
+
+  @return  An argument of the type specified by TYPE.
+
+**/
+#define VA_ARG(Marker, TYPE)   (*(TYPE *) ((Marker += _INT_SIZE_OF (TYPE)) - _INT_SIZE_OF (TYPE)))
+
+/**
+  Terminates the use of a variable argument list.
+
+  This function initializes Marker so it can no longer be used with VA_ARG().
+  After this macro is used, the only way to access the variable argument list is
+  by using VA_START() again.
+
+  @param   Marker   VA_LIST used to traverse the list of arguments.
+
+**/
+#define VA_END(Marker)      (Marker = (VA_LIST) 0)
+
+/**
+  Initializes a VA_LIST as a copy of an existing VA_LIST.
+
+  This macro initializes Dest as a copy of Start, as if the VA_START macro had been applied to Dest
+  followed by the same sequence of uses of the VA_ARG macro as had previously been used to reach
+  the present state of Start.
+
+  @param   Dest   VA_LIST used to traverse the list of arguments.
+  @param   Start  VA_LIST used to traverse the list of arguments.
+
+**/
+#define VA_COPY(Dest, Start)  ((void)((Dest) = (Start)))
+
+# endif
 
 #else // __CC_ARM
 #define va_start(Marker, Parameter)   __va_start(Marker, Parameter)
@@ -94,7 +169,9 @@ typedef __builtin_va_list VA_LIST;
    portably, hence it is provided by a Standard C header file.
    For pre-Standard C compilers, here is a version that usually works
    (but watch out!): */
+#ifndef offsetof
 #define offsetof(type, member) ( (int) & ((type*)0) -> member )
+#endif
 
 //
 // Basic types from EFI Application Toolkit required to buiild Open SSL
@@ -130,6 +207,11 @@ struct tm {
   long  tm_gmtoff;  /* offset from CUT in seconds */
   char  *tm_zone;   /* timezone abbreviation */
 };
+
+struct timeval {
+  long tv_sec;      /* time value, in seconds */
+  long tv_usec;     /* time value, in microseconds */
+} timeval;
 
 struct dirent {
   UINT32  d_fileno;         /* file number of entry */
@@ -265,5 +347,6 @@ extern FILE  *stdout;
 #define assert(expression)
 #define localtime(timer)                  NULL
 #define gmtime_r(timer,result)            (result = NULL)
+#define atoi(nptr)                        Atoi(nptr)
 
 #endif
