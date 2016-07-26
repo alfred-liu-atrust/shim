@@ -1,14 +1,14 @@
 shim (0.9+1465500757.14a5905-0ubuntu1) UNRELEASED; urgency=medium
 
   * New upstream release.
-
-  [ Matthias Klose ]
-  * Fix build with GCC 5, forcing -std=gnu89 to not rely on stdint.h
-    required by efibind.h, and not found with -nostdinc. (LP: #1429978)
-
-  [ Mathieu Trudel-Lapierre ]
-  * More GCC 5 fixes: stdarg.h and other include tweaks, cherry-pick from
-    d51739a4.
+    - Better handle LoadOptions.
+    - Measure state and second stage in TPM.
+    - Mirror MokSBState in runtime as MokSBStateRT.
+    - Various bug fixes and other improvements.
+  * Refreshed patches.
+    - Remaining patches:
+      + second-stage-path
+      + sbsigntool-not-pesign 
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 26 Jul 2016 12:02:21 -0400
 
