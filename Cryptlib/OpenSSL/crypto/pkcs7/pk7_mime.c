@@ -1,5 +1,6 @@
 /* pk7_mime.c */
-/* Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
+/*
+ * Written by Dr Stephen N Henson (steve@openssl.org) for the OpenSSL
  * project.
  */
 /* ====================================================================
@@ -10,7 +11,7 @@
  * are met:
  *
  * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer. 
+ *    notice, this list of conditions and the following disclaimer.
  *
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in
@@ -59,67 +60,37 @@
 #include <openssl/x509.h>
 #include <openssl/asn1.h>
 
-/* PKCS#7 wrappers round generalised MIME routines */
+/* PKCS#7 wrappers round generalised stream and MIME routines */
 
-PKCS7 *SMIME_read_PKCS7(BIO *bio, BIO **bcont)
-	{
-	return (PKCS7 *)SMIME_read_ASN1(bio, bcont, ASN1_ITEM_rptr(PKCS7));
-	}
+int i2d_PKCS7_bio_stream(BIO *out, PKCS7 *p7, BIO *in, int flags)
+{
+    return i2d_ASN1_bio_stream(out, (ASN1_VALUE *)p7, in, flags,
+                               ASN1_ITEM_rptr(PKCS7));
+}
 
-/* Callback for int_smime_write_ASN1 */
-
-static int pk7_output_data(BIO *out, BIO *data, ASN1_VALUE *val, int flags,
-					const ASN1_ITEM *it)
-	{
-	PKCS7 *p7 = (PKCS7 *)val;
-	BIO *tmpbio, *p7bio;
-
-	if (!(flags & SMIME_DETACHED))
-		{
-		SMIME_crlf_copy(data, out, flags);
-		return 1;
-		}
-
-	/* Let PKCS7 code prepend any needed BIOs */
-
-	p7bio = PKCS7_dataInit(p7, out);
-
-	if (!p7bio)
-		return 0;
-
-	/* Copy data across, passing through filter BIOs for processing */
-	SMIME_crlf_copy(data, p7bio, flags);
-
-	/* Finalize structure */
-	if (PKCS7_dataFinal(p7, p7bio) <= 0)
-		goto err;
-
-	err:
-
-	/* Now remove any digests prepended to the BIO */
-
-	while (p7bio != out)
-		{
-		tmpbio = BIO_pop(p7bio);
-		BIO_free(p7bio);
-		p7bio = tmpbio;
-		}
-
-	return 1;
-
-	}
+int PEM_write_bio_PKCS7_stream(BIO *out, PKCS7 *p7, BIO *in, int flags)
+{
+    return PEM_write_bio_ASN1_stream(out, (ASN1_VALUE *)p7, in, flags,
+                                     "PKCS7", ASN1_ITEM_rptr(PKCS7));
+}
 
 int SMIME_write_PKCS7(BIO *bio, PKCS7 *p7, BIO *data, int flags)
-	{
-	STACK_OF(X509_ALGOR) *mdalgs;
-	int ctype_nid = OBJ_obj2nid(p7->type);
-	if (ctype_nid == NID_pkcs7_signed)
-		mdalgs = p7->d.sign->md_algs;
-	else
-		mdalgs = NULL;
+{
+    STACK_OF(X509_ALGOR) *mdalgs;
+    int ctype_nid = OBJ_obj2nid(p7->type);
+    if (ctype_nid == NID_pkcs7_signed)
+        mdalgs = p7->d.sign->md_algs;
+    else
+        mdalgs = NULL;
 
-	return int_smime_write_ASN1(bio, (ASN1_VALUE *)p7, data, flags,
-					ctype_nid, NID_undef, mdalgs,
-					pk7_output_data,
-					ASN1_ITEM_rptr(PKCS7));	
-	}
+    flags ^= SMIME_OLDMIME;
+
+    return SMIME_write_ASN1(bio, (ASN1_VALUE *)p7, data, flags,
+                            ctype_nid, NID_undef, mdalgs,
+                            ASN1_ITEM_rptr(PKCS7));
+}
+
+PKCS7 *SMIME_read_PKCS7(BIO *bio, BIO **bcont)
+{
+    return (PKCS7 *)SMIME_read_ASN1(bio, bcont, ASN1_ITEM_rptr(PKCS7));
+}

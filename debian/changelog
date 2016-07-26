@@ -1,4 +1,6 @@
-shim (0.8-0ubuntu3) UNRELEASED; urgency=medium
+shim (0.9+1465500757.14a5905-0ubuntu1) UNRELEASED; urgency=medium
+
+  * New upstream release.
 
   [ Matthias Klose ]
   * Fix build with GCC 5, forcing -std=gnu89 to not rely on stdint.h
@@ -8,7 +10,7 @@ shim (0.8-0ubuntu3) UNRELEASED; urgency=medium
   * More GCC 5 fixes: stdarg.h and other include tweaks, cherry-pick from
     d51739a4.
 
- -- Mathieu Trudel-Lapierre <mathieu-tl@ubuntu.com>  Tue, 12 May 2015 21:43:35 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 26 Jul 2016 12:02:21 -0400
 
 shim (0.8-0ubuntu2) wily; urgency=medium
 
