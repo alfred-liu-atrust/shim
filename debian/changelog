@@ -1,4 +1,4 @@
-shim (0.9+1465500757.14a5905-0ubuntu1) UNRELEASED; urgency=medium
+shim (0.9+1465500757.14a5905-0ubuntu1) yakkety; urgency=medium
 
   * New upstream release.
     - Better handle LoadOptions. (LP: #1581299)
@@ -15,7 +15,7 @@ shim (0.9+1465500757.14a5905-0ubuntu1) UNRELEASED; urgency=medium
     match objcopy's version on Ubuntu.
   * debian/copyright: update copyright for patches.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 26 Jul 2016 12:02:21 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 26 Jul 2016 16:48:32 -0400
 
 shim (0.8-0ubuntu2) wily; urgency=medium
 
