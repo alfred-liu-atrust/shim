@@ -1,0 +1,26 @@
+From: Mathieu Trudel-Lapierre <mathieu.trudel-lapierre@canonical.com>
+Subject: Revert d9a4c912 to fix matching binutils version on Ubuntu.
+
+That commit breaks on Ubuntu as we don't just have "version xyz", but rather
+just the version number at the end of the version string, which looks like
+this:
+
+  "GNU objcopy (GNU Binutils for Ubuntu) 2.26"
+
+---
+ Makefile |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: b/Makefile
+===================================================================
+--- a/Makefile
++++ b/Makefile
+@@ -9,7 +9,7 @@ LD		= $(CROSS_COMPILE)ld
+ OBJCOPY		= $(CROSS_COMPILE)objcopy
+ 
+ ARCH		= $(shell $(CC) -dumpmachine | cut -f1 -d- | sed s,i[3456789]86,ia32,)
+-OBJCOPY_GTE224  = $(shell expr `$(OBJCOPY) --version |grep ^"GNU objcopy" | sed 's/^.version //g' | cut -f1-2 -d.` \>= 2.24)
++OBJCOPY_GTE224  = $(shell expr `$(OBJCOPY) --version |grep ^"GNU objcopy" | sed 's/^.* //g' | cut -f1-2 -d.` \>= 2.24)
+ 
+ SUBDIRS		= Cryptlib lib
+ 

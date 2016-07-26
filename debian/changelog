@@ -10,6 +10,9 @@ shim (0.9+1465500757.14a5905-0ubuntu1) UNRELEASED; urgency=medium
     - Remaining patches:
       + second-stage-path
       + sbsigntool-not-pesign 
+  * debian/patches/unused-variable: remove unused variable size.
+  * debian/patches/binutils-version-matching: revert d9a4c912 to correctly
+    match objcopy's version on Ubuntu.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 26 Jul 2016 12:02:21 -0400
 
