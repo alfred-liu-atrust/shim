@@ -1,3 +1,9 @@
+shim (0.9+1465500757.14a5905-0ubuntu2) yakkety; urgency=medium
+
+  * debian/copyright: add OpenSSL license 
+
+ -- Helen Koike <helen.koike@collabora.com>  Wed, 14 Sep 2016 16:34:52 -0300
+
 shim (0.9+1465500757.14a5905-0ubuntu1) yakkety; urgency=medium
 
   * New upstream release.
