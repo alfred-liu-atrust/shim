@@ -1,13 +1,13 @@
 
 EFI_INCLUDES	= -IInclude -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol
 
-CFLAGS		= -std=gnu89 -ggdb -O0 -I. -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
-		  -Wall $(EFI_INCLUDES) \
+CFLAGS		= -ggdb -O0 -I. -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
+		  -Wall $(EFI_INCLUDES) -std=gnu89 \
 		  -ffreestanding -I$(shell $(CC) -print-file-name=include)
 
 ifeq ($(ARCH),x86_64)
 	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc -maccumulate-outgoing-args \
-		-DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI
+		-DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI -DNO_BUILTIN_VA_FUNCS
 endif
 ifeq ($(ARCH),ia32)
 	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc -maccumulate-outgoing-args -m32
@@ -19,6 +19,7 @@ OBJS		=   Hash/CryptMd4.o \
 		    Hash/CryptMd5.o \
 		    Hash/CryptSha1.o \
 		    Hash/CryptSha256.o \
+		    Hash/CryptSha512.o \
 		    Hmac/CryptHmacMd5.o \
 		    Hmac/CryptHmacSha1.o \
 		    Cipher/CryptAes.o \
@@ -30,6 +31,7 @@ OBJS		=   Hash/CryptMd4.o \
 		    Pk/CryptPkcs7SignNull.o \
 		    Pk/CryptPkcs7Verify.o \
 		    Pk/CryptDhNull.o \
+		    Pk/CryptTs.o \
 		    Pk/CryptX509.o \
 		    Pk/CryptAuthenticode.o \
 		    Pem/CryptPem.o \

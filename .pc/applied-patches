@@ -1,5 +1,2 @@
-prototypes
 second-stage-path
 sbsigntool-not-pesign
-gcc-5.diff
-gcc5-includes-stdarg.patch
