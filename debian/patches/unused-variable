@@ -1,0 +1,19 @@
+From: Mathieu Trudel-Lapierre <mathieu.trudel-lapierre@canonical.com>
+Subject: Remove unused variable; pointed out by Werror=unused-variable
+
+---
+ shim.c |    1 -
+ 1 file changed, 1 deletion(-)
+
+Index: b/shim.c
+===================================================================
+--- a/shim.c
++++ b/shim.c
+@@ -1118,7 +1118,6 @@ static EFI_STATUS handle_image (void *da
+ 	EFI_STATUS efi_status;
+ 	char *buffer;
+ 	int i;
+-	unsigned int size;
+ 	EFI_IMAGE_SECTION_HEADER *Section;
+ 	char *base, *end;
+ 	PE_COFF_LOADER_IMAGE_CONTEXT context;

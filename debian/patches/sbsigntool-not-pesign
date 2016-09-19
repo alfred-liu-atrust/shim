@@ -13,8 +13,8 @@ Index: b/Makefile
 ===================================================================
 --- a/Makefile
 +++ b/Makefile
-@@ -144,8 +144,8 @@ FORMAT		?= --target efi-app-$(ARCH)
- 		-j .debug_line -j .debug_str -j .debug_ranges \
+@@ -158,8 +158,8 @@ endif
+ 		-j .note.gnu.build-id \
  		$(FORMAT) $^ $@.debug
  
 -%.efi.signed: %.efi certdb/secmod.db

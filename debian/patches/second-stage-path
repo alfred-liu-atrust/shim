@@ -13,7 +13,7 @@ Index: b/Makefile
 ===================================================================
 --- a/Makefile
 +++ b/Makefile
-@@ -18,7 +18,7 @@ EFI_LIBS	= -lefi -lgnuefi --start-group
+@@ -25,7 +25,7 @@ EFI_LIBS	= -lefi -lgnuefi --start-group
  EFI_CRT_OBJS 	= $(EFI_PATH)/crt0-efi-$(ARCH).o
  EFI_LDS		= elf_$(ARCH)_efi.lds
  
@@ -21,4 +21,4 @@ Index: b/Makefile
 +DEFAULT_LOADER	:= \\\\grubx64.efi
  CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
  		  -fshort-wchar -Wall -Wsign-compare -Werror -fno-builtin \
- 		  -Werror=sign-compare \
+ 		  -Werror=sign-compare -ffreestanding -std=gnu89 \
