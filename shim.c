@@ -41,6 +41,7 @@
 #include "netboot.h"
 #include "shim_cert.h"
 #include "replacements.h"
+#include "tpm.h"
 #include "ucs2.h"
 
 #include "guid.h"
@@ -54,6 +55,7 @@
 #define MOK_MANAGER L"\\MokManager.efi"
 
 static EFI_SYSTEM_TABLE *systab;
+static EFI_HANDLE image_handle;
 static EFI_STATUS (EFIAPI *entry_point) (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *system_table);
 
 static CHAR16 *second_stage;
@@ -518,6 +520,7 @@ static EFI_STATUS check_blacklist (WIN_CERTIFICATE_EFI_PKCS *cert,
 				   UINT8 *sha256hash, UINT8 *sha1hash)
 {
 	EFI_GUID secure_var = EFI_IMAGE_SECURITY_DATABASE_GUID;
+	EFI_GUID shim_var = SHIM_LOCK_GUID;
 	EFI_SIGNATURE_LIST *dbx = (EFI_SIGNATURE_LIST *)vendor_dbx;
 
 	if (check_db_hash_in_ram(dbx, vendor_dbx_size, sha256hash,
@@ -541,6 +544,14 @@ static EFI_STATUS check_blacklist (WIN_CERTIFICATE_EFI_PKCS *cert,
 	if (cert && check_db_cert(L"dbx", secure_var, cert, sha256hash) ==
 				DATA_FOUND)
 		return EFI_ACCESS_DENIED;
+	if (check_db_hash(L"MokListX", shim_var, sha256hash, SHA256_DIGEST_SIZE,
+			  EFI_CERT_SHA256_GUID) == DATA_FOUND) {
+		return EFI_ACCESS_DENIED;
+	}
+	if (cert && check_db_cert(L"MokListX", shim_var, cert, sha256hash) ==
+				DATA_FOUND) {
+		return EFI_ACCESS_DENIED;
+	}
 
 	return EFI_SUCCESS;
 }
@@ -603,12 +614,14 @@ static EFI_STATUS check_whitelist (WIN_CERTIFICATE_EFI_PKCS *cert,
 
 static BOOLEAN secure_mode (void)
 {
+	static int first = 1;
 	if (user_insecure_mode)
 		return FALSE;
 
 	if (variable_is_secureboot() != 1) {
-		if (verbose && !in_protocol)
+		if (verbose && !in_protocol && first)
 			console_notify(L"Secure boot not enabled");
+		first = 0;
 		return FALSE;
 	}
 
@@ -619,11 +632,13 @@ static BOOLEAN secure_mode (void)
 	 * to consider it.
 	 */
 	if (variable_is_setupmode(0) == 1) {
-		if (verbose && !in_protocol)
+		if (verbose && !in_protocol && first)
 			console_notify(L"Platform is in setup mode");
+		first = 0;
 		return FALSE;
 	}
 
+	first = 0;
 	return TRUE;
 }
 
@@ -1002,14 +1017,18 @@ static EFI_STATUS read_header(void *data, unsigned int datasize,
 		context->NumberOfRvaAndSizes = PEHdr->Pe32Plus.OptionalHeader.NumberOfRvaAndSizes;
 		context->SizeOfHeaders = PEHdr->Pe32Plus.OptionalHeader.SizeOfHeaders;
 		context->ImageSize = PEHdr->Pe32Plus.OptionalHeader.SizeOfImage;
+		context->SectionAlignment = PEHdr->Pe32Plus.OptionalHeader.SectionAlignment;
 		OptHeaderSize = sizeof(EFI_IMAGE_OPTIONAL_HEADER64);
 	} else {
 		context->NumberOfRvaAndSizes = PEHdr->Pe32.OptionalHeader.NumberOfRvaAndSizes;
 		context->SizeOfHeaders = PEHdr->Pe32.OptionalHeader.SizeOfHeaders;
 		context->ImageSize = (UINT64)PEHdr->Pe32.OptionalHeader.SizeOfImage;
+		context->SectionAlignment = PEHdr->Pe32.OptionalHeader.SectionAlignment;
 		OptHeaderSize = sizeof(EFI_IMAGE_OPTIONAL_HEADER32);
 	}
 
+	if (context->SectionAlignment < 0x1000)
+		context->SectionAlignment = 0x1000;
 	context->NumberOfSections = PEHdr->Pe32.FileHeader.NumberOfSections;
 
 	if (EFI_IMAGE_NUMBER_OF_DIRECTORY_ENTRIES < context->NumberOfRvaAndSizes) {
@@ -1103,6 +1122,8 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 	EFI_IMAGE_SECTION_HEADER *Section;
 	char *base, *end;
 	PE_COFF_LOADER_IMAGE_CONTEXT context;
+	unsigned int alignment;
+	int found_entry_point = 0;
 
 	/*
 	 * The binary header contains relevant context and section pointers
@@ -1128,7 +1149,26 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 		}
 	}
 
-	buffer = AllocatePool(context.ImageSize);
+	/* The spec says, uselessly, of SectionAlignment:
+	 * =====
+	 * The alignment (in bytes) of sections when they are loaded into
+	 * memory. It must be greater than or equal to FileAlignment. The
+	 * default is the page size for the architecture.
+	 * =====
+	 * Which doesn't tell you whose responsibility it is to enforce the
+	 * "default", or when.  It implies that the value in the field must
+	 * be > FileAlignment (also poorly defined), but it appears visual
+	 * studio will happily write 512 for FileAlignment (its default) and
+	 * 0 for SectionAlignment, intending to imply PAGE_SIZE.
+	 *
+	 * We only support one page size, so if it's zero, nerf it to 4096.
+	 */
+	alignment = context.SectionAlignment;
+	if (!alignment)
+		alignment = 4096;
+
+	buffer = AllocatePool(context.ImageSize + context.SectionAlignment);
+	buffer = ALIGN_POINTER(buffer, alignment);
 
 	if (!buffer) {
 		perror(L"Failed to allocate image buffer\n");
@@ -1137,11 +1177,25 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 
 	CopyMem(buffer, data, context.SizeOfHeaders);
 
+	entry_point = ImageAddress(buffer, context.ImageSize, context.EntryPoint);
+	if (!entry_point) {
+		perror(L"Entry point is invalid\n");
+		FreePool(buffer);
+		return EFI_UNSUPPORTED;
+	}
+
+
 	char *RelocBase, *RelocBaseEnd;
-	RelocBase = ImageAddress(buffer, datasize,
+	/*
+	 * These are relative virtual addresses, so we have to check them
+	 * against the image size, not the data size.
+	 */
+	RelocBase = ImageAddress(buffer, context.ImageSize,
 				 context.RelocDir->VirtualAddress);
-	/* RelocBaseEnd here is the address of the last byte of the table */
-	RelocBaseEnd = ImageAddress(buffer, datasize,
+	/*
+	 * RelocBaseEnd here is the address of the last byte of the table
+	 */
+	RelocBaseEnd = ImageAddress(buffer, context.ImageSize,
 				    context.RelocDir->VirtualAddress +
 				    context.RelocDir->Size - 1);
 
@@ -1152,23 +1206,22 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 	 */
 	Section = context.FirstSection;
 	for (i = 0; i < context.NumberOfSections; i++, Section++) {
-		size = Section->Misc.VirtualSize;
+		base = ImageAddress (buffer, context.ImageSize,
+				     Section->VirtualAddress);
+		end = ImageAddress (buffer, context.ImageSize,
+				    Section->VirtualAddress
+				     + Section->Misc.VirtualSize - 1);
 
-		if (size > Section->SizeOfRawData)
-			size = Section->SizeOfRawData;
-
-		base = ImageAddress (buffer, context.ImageSize, Section->VirtualAddress);
-		end = ImageAddress (buffer, context.ImageSize, Section->VirtualAddress + size - 1);
-		if (!base || !end) {
-			perror(L"Invalid section size\n");
+		if (end < base) {
+			perror(L"Section %d has negative size\n", i);
+			FreePool(buffer);
 			return EFI_UNSUPPORTED;
 		}
 
-		if (Section->VirtualAddress < context.SizeOfHeaders ||
-				Section->PointerToRawData < context.SizeOfHeaders) {
-			perror(L"Section is inside image headers\n");
-			return EFI_UNSUPPORTED;
-		}
+		if (Section->VirtualAddress <= context.EntryPoint &&
+		    (Section->VirtualAddress + Section->SizeOfRawData - 1)
+		    > context.EntryPoint)
+			found_entry_point++;
 
 		/* We do want to process .reloc, but it's often marked
 		 * discardable, so we don't want to memcpy it. */
@@ -1189,16 +1242,32 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 			}
 		}
 
-		if (Section->Characteristics & 0x02000000) {
-			/* section has EFI_IMAGE_SCN_MEM_DISCARDABLE attr set */
+		if (Section->Characteristics & EFI_IMAGE_SCN_MEM_DISCARDABLE) {
 			continue;
 		}
 
-		if (Section->SizeOfRawData > 0)
-			CopyMem(base, data + Section->PointerToRawData, size);
+		if (!base) {
+			perror(L"Section %d has invalid base address\n", i);
+			return EFI_UNSUPPORTED;
+		}
+		if (!end) {
+			perror(L"Section %d has zero size\n", i);
+			return EFI_UNSUPPORTED;
+		}
 
-		if (size < Section->Misc.VirtualSize)
-			ZeroMem (base + size, Section->Misc.VirtualSize - size);
+		if (!(Section->Characteristics & EFI_IMAGE_SCN_CNT_UNINITIALIZED_DATA) &&
+		    (Section->VirtualAddress < context.SizeOfHeaders ||
+		     Section->PointerToRawData < context.SizeOfHeaders)) {
+			perror(L"Section %d is inside image headers\n", i);
+			return EFI_UNSUPPORTED;
+		}
+
+		if (Section->SizeOfRawData > 0)
+			CopyMem(base, data + Section->PointerToRawData, Section->SizeOfRawData);
+
+		if (Section->SizeOfRawData < Section->Misc.VirtualSize)
+			ZeroMem (base + Section->SizeOfRawData,
+				 Section->Misc.VirtualSize - Section->SizeOfRawData);
 	}
 
 	if (context.NumberOfRvaAndSizes <= EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC) {
@@ -1221,7 +1290,6 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 		}
 	}
 
-	entry_point = ImageAddress(buffer, context.ImageSize, context.EntryPoint);
 	/*
 	 * grub needs to know its location and size in memory, so fix up
 	 * the loaded image protocol values
@@ -1233,9 +1301,12 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 	li->LoadOptions = load_options;
 	li->LoadOptionsSize = load_options_size;
 
-	if (!entry_point) {
-		perror(L"Invalid entry point\n");
-		FreePool(buffer);
+	if (!found_entry_point) {
+		perror(L"Entry point is not within sections\n");
+		return EFI_UNSUPPORTED;
+	}
+	if (found_entry_point > 1) {
+		perror(L"%d sections contain entry point\n");
 		return EFI_UNSUPPORTED;
 	}
 
@@ -1250,8 +1321,8 @@ should_use_fallback(EFI_HANDLE image_handle)
 	unsigned int pathlen = 0;
 	CHAR16 *bootpath = NULL;
 	EFI_FILE_IO_INTERFACE *fio = NULL;
-	EFI_FILE *vh;
-	EFI_FILE *fh;
+	EFI_FILE *vh = NULL;
+	EFI_FILE *fh = NULL;
 	EFI_STATUS rc;
 	int ret = 0;
 
@@ -1270,7 +1341,9 @@ should_use_fallback(EFI_HANDLE image_handle)
 	 * L"\\EFI\\BOOT\\/BOOTX64.EFI".  So just handle that here...
 	 */
 	if (StrnCaseCmp(bootpath, L"\\EFI\\BOOT\\BOOT", 14) &&
-			StrnCaseCmp(bootpath, L"\\EFI\\BOOT\\/BOOT", 15))
+			StrnCaseCmp(bootpath, L"\\EFI\\BOOT\\/BOOT", 15) &&
+			StrnCaseCmp(bootpath, L"EFI\\BOOT\\BOOT", 13) &&
+			StrnCaseCmp(bootpath, L"EFI\\BOOT\\/BOOT", 14))
 		goto error;
 
 	pathlen = StrLen(bootpath);
@@ -1302,11 +1375,13 @@ should_use_fallback(EFI_HANDLE image_handle)
 		uefi_call_wrapper(vh->Close, 1, vh);
 		goto error;
 	}
-	uefi_call_wrapper(fh->Close, 1, fh);
-	uefi_call_wrapper(vh->Close, 1, vh);
 
 	ret = 1;
 error:
+	if (fh)
+		uefi_call_wrapper(fh->Close, 1, fh);
+	if (vh)
+	    uefi_call_wrapper(vh->Close, 1, vh);
 	if (bootpath)
 		FreePool(bootpath);
 
@@ -1326,6 +1401,24 @@ static EFI_STATUS generate_path(EFI_LOADED_IMAGE *li, CHAR16 *ImagePath,
 	unsigned int pathlen = 0;
 	EFI_STATUS efi_status = EFI_SUCCESS;
 	CHAR16 *bootpath;
+
+	/*
+	 * Suuuuper lazy technique here, but check and see if this is a full
+	 * path to something on the ESP.  Backwards compatibility demands
+	 * that we don't just use \\, becuase we (not particularly brightly)
+	 * used to require that the relative file path started with that.
+	 *
+	 * If it is a full path, don't try to merge it with the directory
+	 * from our Loaded Image handle.
+	 */
+	if (StrSize(ImagePath) > 5 && StrnCmp(ImagePath, L"\\EFI\\", 5) == 0) {
+		*PathName = StrDuplicate(ImagePath);
+		if (!*PathName) {
+			perror(L"Failed to allocate path buffer\n");
+			return EFI_OUT_OF_RESOURCES;
+		}
+		return EFI_SUCCESS;
+	}
 
 	devpath = li->FilePath;
 
@@ -1515,17 +1608,16 @@ error:
  */
 EFI_STATUS shim_verify (void *buffer, UINT32 size)
 {
-	EFI_STATUS status;
+	EFI_STATUS status = EFI_SUCCESS;
 	PE_COFF_LOADER_IMAGE_CONTEXT context;
 
 	loader_is_participating = 1;
 	in_protocol = 1;
 
 	if (!secure_mode())
-		return EFI_SUCCESS;
+		goto done;
 
 	status = read_header(buffer, size, &context);
-
 	if (status != EFI_SUCCESS)
 		goto done;
 
@@ -1622,6 +1714,10 @@ EFI_STATUS start_image(EFI_HANDLE image_handle, CHAR16 *ImagePath)
 		}
 	}
 
+	/* Measure the binary into the TPM */
+	tpm_log_event((EFI_PHYSICAL_ADDRESS)data, datasize, 9,
+		      (CHAR8 *)"Second stage bootloader");
+
 	/*
 	 * We need to modify the loaded image protocol entry before running
 	 * the new binary, so back it up
@@ -1667,14 +1763,62 @@ done:
 EFI_STATUS init_grub(EFI_HANDLE image_handle)
 {
 	EFI_STATUS efi_status;
+	int use_fb = should_use_fallback(image_handle);
 
-	if (should_use_fallback(image_handle))
-		efi_status = start_image(image_handle, FALLBACK);
-	else
-		efi_status = start_image(image_handle, second_stage);
+	efi_status = start_image(image_handle, use_fb ? FALLBACK :second_stage);
+
+	if (efi_status == EFI_SECURITY_VIOLATION) {
+		efi_status = start_image(image_handle, MOK_MANAGER);
+		if (efi_status != EFI_SUCCESS) {
+			Print(L"start_image() returned %r\n", efi_status);
+			uefi_call_wrapper(BS->Stall, 1, 2000000);
+			return efi_status;
+		}
+
+		efi_status = start_image(image_handle,
+					 use_fb ? FALLBACK : second_stage);
+	}
+
+	if (efi_status != EFI_SUCCESS) {
+		Print(L"start_image() returned %r\n", efi_status);
+		uefi_call_wrapper(BS->Stall, 1, 2000000);
+	}
+
+	return efi_status;
+}
+
+/*
+ * Measure some of the MOK variables into the TPM
+ */
+EFI_STATUS measure_mok()
+{
+	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
+	EFI_STATUS efi_status;
+	UINT8 *Data = NULL;
+	UINTN DataSize = 0;
+
+	efi_status = get_variable(L"MokList", &Data, &DataSize, shim_lock_guid);
+	if (efi_status != EFI_SUCCESS)
+		return efi_status;
+
+	efi_status = tpm_log_event((EFI_PHYSICAL_ADDRESS)Data, DataSize, 14,
+				   (CHAR8 *)"MokList");
+
+	FreePool(Data);
 
 	if (efi_status != EFI_SUCCESS)
-		efi_status = start_image(image_handle, MOK_MANAGER);
+		return efi_status;
+
+	efi_status = get_variable(L"MokSBState", &Data, &DataSize,
+				  shim_lock_guid);
+
+	if (efi_status != EFI_SUCCESS)
+		return efi_status;
+
+	efi_status = tpm_log_event((EFI_PHYSICAL_ADDRESS)Data, DataSize, 14,
+				   (CHAR8 *)"MokSBState");
+
+	FreePool(Data);
 
 	return efi_status;
 }
@@ -1749,6 +1893,60 @@ EFI_STATUS mirror_mok_list()
 }
 
 /*
+ * Copy the boot-services only MokListX variable to the runtime-accessible
+ * MokListXRT variable. It's not marked NV, so the OS can't modify it.
+ */
+EFI_STATUS mirror_mok_list_x()
+{
+	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
+	EFI_STATUS efi_status;
+	UINT8 *Data = NULL;
+	UINTN DataSize = 0;
+
+	efi_status = get_variable(L"MokListX", &Data, &DataSize, shim_lock_guid);
+	if (efi_status != EFI_SUCCESS)
+		return efi_status;
+
+	efi_status = uefi_call_wrapper(RT->SetVariable, 5, L"MokListXRT",
+				       &shim_lock_guid,
+				       EFI_VARIABLE_BOOTSERVICE_ACCESS
+				       | EFI_VARIABLE_RUNTIME_ACCESS,
+				       DataSize, Data);
+	if (efi_status != EFI_SUCCESS) {
+		console_error(L"Failed to set MokListRT", efi_status);
+	}
+
+	return efi_status;
+}
+
+/*
+ * Copy the boot-services only MokSBState variable to the runtime-accessible
+ * MokSBStateRT variable. It's not marked NV, so the OS can't modify it.
+ */
+EFI_STATUS mirror_mok_sb_state()
+{
+	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
+	EFI_STATUS efi_status;
+	UINT8 *Data = NULL;
+	UINTN DataSize = 0;
+
+	efi_status = get_variable(L"MokSBState", &Data, &DataSize, shim_lock_guid);
+	if (efi_status != EFI_SUCCESS)
+		return efi_status;
+
+	efi_status = uefi_call_wrapper(RT->SetVariable, 5, L"MokSBStateRT",
+				       &shim_lock_guid,
+				       EFI_VARIABLE_BOOTSERVICE_ACCESS
+				       | EFI_VARIABLE_RUNTIME_ACCESS,
+				       DataSize, Data);
+	if (efi_status != EFI_SUCCESS) {
+		console_error(L"Failed to set MokSBStateRT", efi_status);
+	}
+
+	return efi_status;
+}
+
+/*
  * Check if a variable exists
  */
 static BOOLEAN check_var(CHAR16 *varname)
@@ -1779,7 +1977,9 @@ EFI_STATUS check_mok_request(EFI_HANDLE image_handle)
 
 	if (check_var(L"MokNew") || check_var(L"MokSB") ||
 	    check_var(L"MokPW") || check_var(L"MokAuth") ||
-	    check_var(L"MokDel") || check_var(L"MokDB")) {
+	    check_var(L"MokDel") || check_var(L"MokDB") ||
+	    check_var(L"MokXNew") || check_var(L"MokXDel") ||
+	    check_var(L"MokXAuth")) {
 		efi_status = start_image(image_handle, MOK_MANAGER);
 
 		if (efi_status != EFI_SUCCESS) {
@@ -1794,7 +1994,6 @@ EFI_STATUS check_mok_request(EFI_HANDLE image_handle)
 /*
  * Verify that MokSBState is valid, and if appropriate set insecure mode
  */
-
 static EFI_STATUS check_mok_sb (void)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
@@ -1892,6 +2091,118 @@ static EFI_STATUS mok_ignore_db()
 
 }
 
+EFI_GUID bds_guid = { 0x8108ac4e, 0x9f11, 0x4d59, { 0x85, 0x0e, 0xe2, 0x1a, 0x52, 0x2c, 0x59, 0xb2 } };
+
+static inline EFI_STATUS
+get_load_option_optional_data(UINT8 *data, UINTN data_size,
+			      UINT8 **od, UINTN *ods)
+{
+	/*
+	 * If it's not at least Attributes + FilePathListLength +
+	 * Description=L"" + 0x7fff0400 (EndEntrireDevicePath), it can't
+	 * be valid.
+	 */
+	if (data_size < (sizeof(UINT32) + sizeof(UINT16) + 2 + 4))
+		return EFI_INVALID_PARAMETER;
+
+	UINT8 *cur = data + sizeof(UINT32);
+	UINT16 fplistlen = *(UINT16 *)cur;
+	/*
+	 * If there's not enough space for the file path list and the
+	 * smallest possible description (L""), it's not valid.
+	 */
+	if (fplistlen > data_size - (sizeof(UINT32) + 2 + 4))
+		return EFI_INVALID_PARAMETER;
+
+	cur += sizeof(UINT16);
+	UINTN limit = data_size - (cur - data) - fplistlen;
+	UINTN i;
+	for (i = 0; i < limit ; i++) {
+		/* If the description isn't valid UCS2-LE, it's not valid. */
+		if (i % 2 != 0) {
+			if (cur[i] != 0)
+				return EFI_INVALID_PARAMETER;
+		} else if (cur[i] == 0) {
+			/* we've found the end */
+			i++;
+			if (i >= limit || cur[i] != 0)
+				return EFI_INVALID_PARAMETER;
+			break;
+		}
+	}
+	i++;
+	if (i > limit)
+		return EFI_INVALID_PARAMETER;
+
+	/*
+	 * If i is limit, we know the rest of this is the FilePathList and
+	 * there's no optional data.  So just bail now.
+	 */
+	if (i == limit) {
+		*od = NULL;
+		*ods = 0;
+		return EFI_SUCCESS;
+	}
+
+	cur += i;
+	limit -= i;
+	limit += fplistlen;
+	i = 0;
+	while (limit - i >= 4) {
+		struct {
+			UINT8 type;
+			UINT8 subtype;
+			UINT16 len;
+		} dp = {
+			.type = cur[i],
+			.subtype = cur[i+1],
+			/*
+			 * it's a little endian UINT16, but we're not
+			 * guaranteed alignment is sane, so we can't just
+			 * typecast it directly.
+			 */
+			.len = (cur[i+3] << 8) | cur[i+2],
+		};
+
+		/*
+		 * We haven't found an EndEntire, so this has to be a valid
+		 * EFI_DEVICE_PATH in order for the data to be valid.  That
+		 * means it has to fit, and it can't be smaller than 4 bytes.
+		 */
+		if (dp.len < 4 || dp.len > limit)
+			return EFI_INVALID_PARAMETER;
+
+		/*
+		 * see if this is an EndEntire node...
+		 */
+		if (dp.type == 0x7f && dp.subtype == 0xff) {
+			/*
+			 * if we've found the EndEntire node, it must be 4
+			 * bytes
+			 */
+			if (dp.len != 4)
+				return EFI_INVALID_PARAMETER;
+
+			i += dp.len;
+			break;
+		}
+
+		/*
+		 * It's just some random DP node; skip it.
+		 */
+		i += dp.len;
+	}
+	if (i != fplistlen)
+		return EFI_INVALID_PARAMETER;
+
+	/*
+	 * if there's any space left, it's "optional data"
+	 */
+	*od = cur + i;
+	*ods = limit - i;
+	return EFI_SUCCESS;
+}
+
 /*
  * Check the load options to specify the second stage loader
  */
@@ -1899,11 +2210,11 @@ EFI_STATUS set_second_stage (EFI_HANDLE image_handle)
 {
 	EFI_STATUS status;
 	EFI_LOADED_IMAGE *li;
-	CHAR16 *start = NULL, *c;
-	unsigned int i;
+	CHAR16 *start = NULL;
 	int remaining_size = 0;
 	CHAR16 *loader_str = NULL;
-	unsigned int loader_len = 0;
+	UINTN loader_len = 0;
+	unsigned int i;
 
 	second_stage = DEFAULT_LOADER;
 	load_options = NULL;
@@ -1916,55 +2227,167 @@ EFI_STATUS set_second_stage (EFI_HANDLE image_handle)
 		return status;
 	}
 
-	/* Expect a CHAR16 string with at least one CHAR16 */
-	if (li->LoadOptionsSize < 4 || li->LoadOptionsSize % 2 != 0) {
+	/* So, load options are a giant pain in the ass.  If we're invoked
+	 * from the EFI shell, we get something like this:
+
+00000000  5c 00 45 00 36 00 49 00  5c 00 66 00 65 00 64 00  |\.E.F.I.\.f.e.d.|
+00000010  6f 00 72 00 61 00 5c 00  73 00 68 00 69 00 6d 00  |o.r.a.\.s.h.i.m.|
+00000020  78 00 36 00 34 00 2e 00  64 00 66 00 69 00 20 00  |x.6.4...e.f.i. .|
+00000030  5c 00 45 00 46 00 49 00  5c 00 66 00 65 00 64 00  |\.E.F.I.\.f.e.d.|
+00000040  6f 00 72 00 61 00 5c 00  66 00 77 00 75 00 70 00  |o.r.a.\.f.w.u.p.|
+00000050  64 00 61 00 74 00 65 00  2e 00 65 00 66 00 20 00  |d.a.t.e.e.f.i. .|
+00000060  00 00 66 00 73 00 30 00  3a 00 5c 00 00 00        |..f.s.0.:.\...|
+
+	*
+	* which is just some paths rammed together separated by a UCS-2 NUL.
+	* But if we're invoked from BDS, we get something more like:
+	*
+
+00000000  01 00 00 00 62 00 4c 00  69 00 6e 00 75 00 78 00  |....b.L.i.n.u.x.|
+00000010  20 00 46 00 69 00 72 00  6d 00 77 00 61 00 72 00  | .F.i.r.m.w.a.r.|
+00000020  65 00 20 00 55 00 70 00  64 00 61 00 74 00 65 00  |e. .U.p.d.a.t.e.|
+00000030  72 00 00 00 40 01 2a 00  01 00 00 00 00 08 00 00  |r.....*.........|
+00000040  00 00 00 00 00 40 06 00  00 00 00 00 1a 9e 55 bf  |.....@........U.|
+00000050  04 57 f2 4f b4 4a ed 26  4a 40 6a 94 02 02 04 04  |.W.O.:.&J@j.....|
+00000060  34 00 5c 00 45 00 46 00  49 00 5c 00 66 00 65 00  |4.\.E.F.I.f.e.d.|
+00000070  64 00 6f 00 72 00 61 00  5c 00 73 00 68 00 69 00  |o.r.a.\.s.h.i.m.|
+00000080  6d 00 78 00 36 00 34 00  2e 00 65 00 66 00 69 00  |x.6.4...e.f.i...|
+00000090  00 00 7f ff 40 00 20 00  5c 00 66 00 77 00 75 00  |...... .\.f.w.u.|
+000000a0  70 00 78 00 36 00 34 00  2e 00 65 00 66 00 69 00  |p.x.6.4...e.f.i.|
+000000b0  00 00                                             |..|
+
+	*
+	* which is clearly an EFI_LOAD_OPTION filled in halfway reasonably.
+	* In short, the UEFI shell is still a useless piece of junk.
+	*
+	* But then on some versions of BDS, we get:
+
+00000000  5c 00 66 00 77 00 75 00  70 00 78 00 36 00 34 00  |\.f.w.u.p.x.6.4.|
+00000010  2e 00 65 00 66 00 69 00  00 00                    |..e.f.i...|
+0000001a
+
+	* which as you can see is one perfectly normal UCS2-EL string
+	* containing the load option from the Boot#### variable.
+	*
+	* We also sometimes find a guid or partial guid at the end, because
+	* BDS will add that, but we ignore that here.
+	*/
+
+	/*
+	 * In either case, we've got to have at least a UCS2 NUL...
+	 */
+	if (li->LoadOptionsSize < 2)
 		return EFI_BAD_BUFFER_SIZE;
-	}
-	c = (CHAR16 *)(li->LoadOptions + (li->LoadOptionsSize - 2));
-	if (*c != L'\0') {
-		return EFI_BAD_BUFFER_SIZE;
+
+	/*
+	 * Some awesome versions of BDS will add entries for Linux.  On top
+	 * of that, some versions of BDS will "tag" any Boot#### entries they
+	 * create by putting a GUID at the very end of the optional data in
+	 * the EFI_LOAD_OPTIONS, thus screwing things up for everybody who
+	 * tries to actually *use* the optional data for anything.  Why they
+	 * did this instead of adding a flag to the spec to /say/ it's
+	 * created by BDS, I do not know.  For shame.
+	 *
+	 * Anyway, just nerf that out from the start.  It's always just
+	 * garbage at the end.
+	 */
+	if (li->LoadOptionsSize > 16) {
+		if (CompareGuid((EFI_GUID *)(li->LoadOptions
+					     + (li->LoadOptionsSize - 16)),
+				&bds_guid) == 0)
+			li->LoadOptionsSize -= 16;
 	}
 
 	/*
-	 * UEFI shell copies the whole line of the command into LoadOptions.
-	 * We ignore the string before the first L' ', i.e. the name of this
-	 * program.
+	 * Check and see if this is just a list of strings.  If it's an
+	 * EFI_LOAD_OPTION, it'll be 0, since we know EndEntire device path
+	 * won't pass muster as UCS2-LE.
+	 *
+	 * If there are 3 strings, we're launched from the shell most likely,
+	 * But we actually only care about the second one.
 	 */
-	for (i = 0; i < li->LoadOptionsSize; i += 2) {
-		c = (CHAR16 *)(li->LoadOptions + i);
-		if (*c == L' ') {
-			*c = L'\0';
-			start = c + 1;
-			remaining_size = li->LoadOptionsSize - i - 2;
-			break;
+	UINTN strings = count_ucs2_strings(li->LoadOptions,
+					   li->LoadOptionsSize);
+	/*
+	 * If it's not string data, try it as an EFI_LOAD_OPTION.
+	 */
+	if (strings == 0) {
+		/*
+		 * We at least didn't find /enough/ strings.  See if it works
+		 * as an EFI_LOAD_OPTION.
+		 */
+		status = get_load_option_optional_data(li->LoadOptions,
+						       li->LoadOptionsSize,
+						       (UINT8 **)&start,
+						       &loader_len);
+		if (status != EFI_SUCCESS)
+			return EFI_SUCCESS;
+
+		remaining_size = 0;
+	} else if (strings >= 2) {
+		/*
+		 * UEFI shell copies the whole line of the command into
+		 * LoadOptions.  We ignore the string before the first L' ',
+		 * i.e. the name of this program.
+		 * Counting by two bytes is safe, because we know the size is
+		 * compatible with a UCS2-LE string.
+		 */
+		UINT8 *cur = li->LoadOptions;
+		for (i = 0; i < li->LoadOptionsSize - 2; i += 2) {
+			CHAR16 c = (cur[i+1] << 8) | cur[i];
+			if (c == L' ') {
+				start = (CHAR16 *)&cur[i+2];
+				remaining_size = li->LoadOptionsSize - i - 2;
+				break;
+			}
 		}
+
+		if (!start || remaining_size <= 0 || start[0] == L'\0')
+			return EFI_SUCCESS;
+
+		for (i = 0; start[i] != '\0'; i++) {
+			if (start[i] == L' ')
+				start[i] = L'\0';
+			if (start[i] == L'\0') {
+				loader_len = 2 * i + 2;
+				break;
+			}
+		}
+		if (loader_len)
+			remaining_size -= loader_len;
+	} else {
+		/* only find one string */
+		start = li->LoadOptions;
+		loader_len = li->LoadOptionsSize;
 	}
 
-	if (!start || remaining_size <= 0)
+	/*
+	 * Just to be sure all that math is right...
+	 */
+	if (loader_len % 2 != 0)
+		return EFI_INVALID_PARAMETER;
+
+	strings = count_ucs2_strings((UINT8 *)start, loader_len);
+	if (strings < 1)
 		return EFI_SUCCESS;
 
-	for (i = 0; start[i] != '\0'; i++) {
-		if (start[i] == L' ' || start[i] == L'\0')
-			break;
-		loader_len++;
-	}
-
 	/*
-	 * Setup the name of the alternative loader and the LoadOptions for
+	 * Set up the name of the alternative loader and the LoadOptions for
 	 * the loader
 	 */
 	if (loader_len > 0) {
-		loader_str = AllocatePool((loader_len + 1) * sizeof(CHAR16));
+		loader_str = AllocatePool(loader_len);
 		if (!loader_str) {
 			perror(L"Failed to allocate loader string\n");
 			return EFI_OUT_OF_RESOURCES;
 		}
-		for (i = 0; i < loader_len; i++)
+
+		for (i = 0; i < loader_len / 2; i++)
 			loader_str[i] = start[i];
-		loader_str[loader_len] = L'\0';
+		loader_str[loader_len/2-1] = L'\0';
 
 		second_stage = loader_str;
-		load_options = start;
+		load_options = remaining_size ? start + loader_len : NULL;
 		load_options_size = remaining_size;
 	}
 
@@ -1979,6 +2402,10 @@ install_shim_protocols(void)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS efi_status;
+
+	if (!secure_mode())
+		return EFI_SUCCESS;
+
 	/*
 	 * Install the protocol
 	 */
@@ -2005,6 +2432,10 @@ void
 uninstall_shim_protocols(void)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
+
+	if (!secure_mode())
+		return;
+
 #if defined(OVERRIDE_SECURITY_POLICY)
 	/*
 	 * Clean up the security protocol hook
@@ -2019,7 +2450,111 @@ uninstall_shim_protocols(void)
 			  &shim_lock_guid, &shim_lock_interface);
 }
 
-EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
+EFI_STATUS
+shim_init(void)
+{
+	EFI_STATUS status = EFI_SUCCESS;
+	setup_console(1);
+	setup_verbosity();
+	dprinta(shim_version);
+
+	/* Set the second stage loader */
+	set_second_stage (image_handle);
+
+	if (secure_mode()) {
+		if (vendor_cert_size || vendor_dbx_size) {
+			/*
+			 * If shim includes its own certificates then ensure
+			 * that anything it boots has performed some
+			 * validation of the next image.
+			 */
+			hook_system_services(systab);
+			loader_is_participating = 0;
+		}
+
+		hook_exit(systab);
+
+		status = install_shim_protocols();
+	}
+	return status;
+}
+
+void
+shim_fini(void)
+{
+	if (secure_mode()) {
+		/*
+		 * Remove our protocols
+		 */
+		uninstall_shim_protocols();
+
+		/*
+		 * Remove our hooks from system services.
+		 */
+		unhook_system_services();
+		unhook_exit();
+	}
+
+	/*
+	 * Free the space allocated for the alternative 2nd stage loader
+	 */
+	if (load_options_size > 0 && second_stage)
+		FreePool(second_stage);
+
+	setup_console(0);
+}
+
+extern EFI_STATUS
+efi_main(EFI_HANDLE passed_image_handle, EFI_SYSTEM_TABLE *passed_systab);
+
+static void
+__attribute__((__optimize__("0")))
+debug_hook(void)
+{
+	EFI_GUID guid = SHIM_LOCK_GUID;
+	UINT8 *data = NULL;
+	UINTN dataSize = 0;
+	EFI_STATUS efi_status;
+	volatile register UINTN x = 0;
+	extern char _text, _data;
+
+	if (x)
+		return;
+
+	efi_status = get_variable(L"SHIM_DEBUG", &data, &dataSize, guid);
+	if (EFI_ERROR(efi_status)) {
+		return;
+	}
+
+	Print(L"add-symbol-file "DEBUGDIR
+	      L"shim.debug 0x%08x -s .data 0x%08x\n", &_text,
+	      &_data);
+
+	Print(L"Pausing for debugger attachment.\n");
+	Print(L"To disable this, remove the EFI variable SHIM_DEBUG-%g .\n",
+	      &guid);
+	x = 1;
+	while (x++) {
+		/* Make this so it can't /totally/ DoS us. */
+#if defined(__x86_64__) || defined(__i386__) || defined(__i686__)
+		if (x > 4294967294ULL)
+			break;
+		__asm__ __volatile__("pause");
+#elif defined(__aarch64__)
+		if (x > 1000)
+			break;
+		__asm__ __volatile__("wfi");
+#else
+		if (x > 12000)
+			break;
+		uefi_call_wrapper(BS->Stall, 1, 5000);
+#endif
+	}
+	x = 1;
+}
+
+EFI_STATUS
+efi_main (EFI_HANDLE passed_image_handle, EFI_SYSTEM_TABLE *passed_systab)
 {
 	EFI_STATUS efi_status;
 
@@ -2039,19 +2574,30 @@ EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	shim_lock_interface.Context = shim_read_header;
 
 	systab = passed_systab;
+	image_handle = passed_image_handle;
 
 	/*
 	 * Ensure that gnu-efi functions are available
 	 */
 	InitializeLib(image_handle, systab);
 
-	setup_console(1);
-	setup_verbosity();
+	/*
+	 * if SHIM_DEBUG is set, wait for a debugger to attach.
+	 */
+	debug_hook();
 
-	dprinta(shim_version);
-
-	/* Set the second stage loader */
-	set_second_stage (image_handle);
+	/*
+	 * Measure the MOK variables
+	 */
+	efi_status = measure_mok();
+	if (efi_status != EFI_SUCCESS && efi_status != EFI_NOT_FOUND) {
+		Print(L"Something has gone seriously wrong: %r\n", efi_status);
+		Print(L"Shim was unable to measure state into the TPM\n");
+		systab->BootServices->Stall(5000000);
+		systab->RuntimeServices->ResetSystem(EfiResetShutdown,
+						     EFI_SECURITY_VIOLATION,
+						     0, NULL);
+	}
 
 	/*
 	 * Check whether the user has configured the system to run in
@@ -2059,27 +2605,23 @@ EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	 */
 	check_mok_sb();
 
+	efi_status = shim_init();
+	if (EFI_ERROR(efi_status)) {
+		Print(L"Something has gone seriously wrong: %r\n", efi_status);
+		Print(L"shim cannot continue, sorry.\n");
+		uefi_call_wrapper(BS->Stall, 1, 5000000);
+		uefi_call_wrapper(systab->RuntimeServices->ResetSystem, 4,
+				  EfiResetShutdown, EFI_SECURITY_VIOLATION,
+				  0, NULL);
+	}
+
 	/*
 	 * Tell the user that we're in insecure mode if necessary
 	 */
 	if (user_insecure_mode) {
 		Print(L"Booting in insecure mode\n");
 		uefi_call_wrapper(BS->Stall, 1, 2000000);
-	} else if (secure_mode()) {
-		if (vendor_cert_size || vendor_dbx_size) {
-			/*
-			 * If shim includes its own certificates then ensure
-			 * that anything it boots has performed some
-			 * validation of the next image.
-			 */
-			hook_system_services(systab);
-			loader_is_participating = 0;
-		}
 	}
-
-	efi_status = install_shim_protocols();
-	if (EFI_ERROR(efi_status))
-		return efi_status;
 
 	/*
 	 * Enter MokManager if necessary
@@ -2087,36 +2629,30 @@ EFI_STATUS efi_main (EFI_HANDLE image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	efi_status = check_mok_request(image_handle);
 
 	/*
-	 * Copy the MOK list to a runtime variable so the kernel can make
-	 * use of it
+	 * Copy the MOK list to a runtime variable so the kernel can
+	 * make use of it
 	 */
 	efi_status = mirror_mok_list();
 
+	efi_status = mirror_mok_list_x();
+
 	/*
-	 * Create the runtime MokIgnoreDB variable so the kernel can make
-	 * use of it
+	 * Copy the MOK SB State to a runtime variable so the kernel can
+	 * make use of it
+	 */
+	efi_status = mirror_mok_sb_state();
+
+	/*
+	 * Create the runtime MokIgnoreDB variable so the kernel can
+	 * make use of it
 	 */
 	efi_status = mok_ignore_db();
 
 	/*
 	 * Hand over control to the second stage bootloader
 	 */
-
 	efi_status = init_grub(image_handle);
 
-	uninstall_shim_protocols();
-	/*
-	 * Remove our hooks from system services.
-	 */
-	unhook_system_services();
-
-	/*
-	 * Free the space allocated for the alternative 2nd stage loader
-	 */
-	if (load_options_size > 0)
-		FreePool(second_stage);
-
-	setup_console(0);
-
+	shim_fini();
 	return efi_status;
 }

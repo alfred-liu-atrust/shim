@@ -15,7 +15,9 @@ SECTIONS
   . = ALIGN(4096);
   .text :
   {
+   _text = .;
    *(.text)
+   _etext = .;
   }
   . = ALIGN(4096);
   .reloc :
@@ -25,6 +27,7 @@ SECTIONS
   . = ALIGN(4096);
   .data :
   {
+   _data = .;
    *(.rodata*)
    *(.got.plt)
    *(.got)
@@ -39,6 +42,7 @@ SECTIONS
    *(COMMON)
    *(.rel.local)
   }
+  .note.gnu.build-id : { *(.note.gnu.build-id) }
   . = ALIGN(4096);
   .vendor_cert :
   {
@@ -53,6 +57,9 @@ SECTIONS
     *(.rela.got)
     *(.rela.stab)
   }
+  _edata = .;
+  _data_size = . - _data;
+
   . = ALIGN(4096);
   .dynsym   : { *(.dynsym) }
   . = ALIGN(4096);
@@ -65,4 +72,5 @@ SECTIONS
     *(.note.GNU-stack)
   }
   .comment 0 : { *(.comment) }
+  .note.gnu.build-id : { *(.note.gnu.build-id) }
 }

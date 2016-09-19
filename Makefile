@@ -1,15 +1,22 @@
+VERSION		= 0.9
+RELEASE		:=
+ifneq ($(RELEASE),"")
+	RELEASE:="-$(RELEASE)"
+endif
+
 CC		= $(CROSS_COMPILE)gcc
 LD		= $(CROSS_COMPILE)ld
 OBJCOPY		= $(CROSS_COMPILE)objcopy
 
 ARCH		= $(shell $(CC) -dumpmachine | cut -f1 -d- | sed s,i[3456789]86,ia32,)
+OBJCOPY_GTE224  = $(shell expr `$(OBJCOPY) --version |grep ^"GNU objcopy" | sed 's/^.version //g' | cut -f1-2 -d.` \>= 2.24)
 
 SUBDIRS		= Cryptlib lib
 
 LIB_PATH	= /usr/lib64
 
 EFI_INCLUDE	:= /usr/include/efi
-EFI_INCLUDES	= -nostdinc -ICryptlib -ICryptlib/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol -Iinclude
+EFI_INCLUDES	= -nostdinc -ICryptlib -ICryptlib/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol -I$(shell pwd)/include
 EFI_PATH	:= /usr/lib64/gnuefi
 
 LIB_GCC		= $(shell $(CC) -print-libgcc-file-name)
@@ -21,7 +28,8 @@ EFI_LDS		= elf_$(ARCH)_efi.lds
 DEFAULT_LOADER	:= \\\\grub.efi
 CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
 		  -fshort-wchar -Wall -Wsign-compare -Werror -fno-builtin \
-		  -Werror=sign-compare \
+		  -Werror=sign-compare -ffreestanding -std=gnu89 \
+		  -I$(shell $(CC) -print-file-name=include) \
 		  "-DDEFAULT_LOADER=L\"$(DEFAULT_LOADER)\"" \
 		  "-DDEFAULT_LOADER_CHAR=\"$(DEFAULT_LOADER)\"" \
 		  $(EFI_INCLUDES)
@@ -31,19 +39,22 @@ ifneq ($(origin OVERRIDE_SECURITY_POLICY), undefined)
 endif
 
 ifeq ($(ARCH),x86_64)
-	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc -maccumulate-outgoing-args \
-		-DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI
+	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc \
+		-maccumulate-outgoing-args \
+		-DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI \
+		-DNO_BUILTIN_VA_FUNCS \
+		"-DEFI_ARCH=L\"x64\"" \
+		"-DDEBUGDIR=L\"/usr/lib/debug/usr/share/shim/x64-$(VERSION)$(RELEASE)/\""
 endif
 ifeq ($(ARCH),ia32)
-	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc -maccumulate-outgoing-args -m32
+	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc \
+		-maccumulate-outgoing-args -m32 \
+		"-DEFI_ARCH=L\"ia32\"" \
+		"-DDEBUGDIR=L\"/usr/lib/debug/usr/share/shim/ia32-$(VERSION)$(RELEASE)/\""
 endif
-
 ifeq ($(ARCH),aarch64)
-	CFLAGS	+= -ffreestanding -I$(shell $(CC) -print-file-name=include)
-endif
-
-ifeq ($(ARCH),arm)
-	CFLAGS	+= -ffreestanding -I$(shell $(CC) -print-file-name=include)
+	CFLAGS += "-DEFI_ARCH=L\"aa64\"" \
+		"-DDEBUGDIR=L\"/usr/lib/debug/usr/share/shim/aa64-$(VERSION)$(RELEASE)/\""
 endif
 
 ifneq ($(origin VENDOR_CERT_FILE), undefined)
@@ -53,14 +64,12 @@ ifneq ($(origin VENDOR_DBX_FILE), undefined)
 	CFLAGS += -DVENDOR_DBX_FILE=\"$(VENDOR_DBX_FILE)\"
 endif
 
-LDFLAGS		= -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L$(EFI_PATH) -L$(LIB_PATH) -LCryptlib -LCryptlib/OpenSSL $(EFI_CRT_OBJS)
-
-VERSION		= 0.8
+LDFLAGS		= --hash-style=sysv -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L$(EFI_PATH) -L$(LIB_PATH) -LCryptlib -LCryptlib/OpenSSL $(EFI_CRT_OBJS) --build-id=sha1
 
 TARGET	= shim.efi MokManager.efi.signed fallback.efi.signed
-OBJS	= shim.o netboot.o cert.o replacements.o version.o
+OBJS	= shim.o netboot.o cert.o replacements.o tpm.o version.o
 KEYS	= shim_cert.h ocsp.* ca.* shim.crt shim.csr shim.p12 shim.pem shim.key shim.cer
-SOURCES	= shim.c shim.h netboot.c include/PeImage.h include/wincert.h include/console.h replacements.c replacements.h version.c version.h
+SOURCES	= shim.c shim.h netboot.c include/PeImage.h include/wincert.h include/console.h replacements.c replacements.h tpm.c tpm.h version.c version.h
 MOK_OBJS = MokManager.o PasswordCrypt.o crypt_blowfish.o
 MOK_SOURCES = MokManager.c shim.h include/console.h PasswordCrypt.c PasswordCrypt.h crypt_blowfish.c crypt_blowfish.h
 FALLBACK_OBJS = fallback.o
@@ -91,6 +100,7 @@ certdb/secmod.db: shim.crt
 	certutil -d certdb/ -A -i shim.crt -n shim -t u
 
 shim.o: $(SOURCES) shim_cert.h
+shim.o: $(wildcard *.h)
 
 cert.o : cert.S
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -115,7 +125,7 @@ Cryptlib/OpenSSL/libopenssl.a:
 	$(MAKE) -C Cryptlib/OpenSSL
 
 lib/lib.a:
-	$(MAKE) -C lib
+	$(MAKE) CFLAGS="$(CFLAGS)" -C lib
 
 ifeq ($(ARCH),aarch64)
 FORMAT		:= -O binary
@@ -132,6 +142,9 @@ endif
 FORMAT		?= --target efi-app-$(ARCH)
 
 %.efi: %.so
+ifneq ($(OBJCOPY_GTE224),1)
+	$(error objcopy >= 2.24 is required)
+endif
 	$(OBJCOPY) -j .text -j .sdata -j .data \
 		-j .dynamic -j .dynsym  -j .rel* \
 		-j .rela* -j .reloc -j .eh_frame \
@@ -142,6 +155,7 @@ FORMAT		?= --target efi-app-$(ARCH)
 		-j .rela* -j .reloc -j .eh_frame \
 		-j .debug_info -j .debug_abbrev -j .debug_aranges \
 		-j .debug_line -j .debug_str -j .debug_ranges \
+		-j .note.gnu.build-id \
 		$(FORMAT) $^ $@.debug
 
 %.efi.signed: %.efi certdb/secmod.db

@@ -11,6 +11,7 @@
 #include <efilib.h>
 
 #include "ucs2.h"
+#include "variables.h"
 
 EFI_LOADED_IMAGE *this_image = NULL;
 
@@ -163,7 +164,7 @@ add_boot_option(EFI_DEVICE_PATH *hddp, EFI_DEVICE_PATH *fulldp,
 				StrLen(label)*2 + 2 + DevicePathSize(hddp) +
 				StrLen(arguments) * 2;
 
-			CHAR8 *data = AllocateZeroPool(size);
+			CHAR8 *data = AllocateZeroPool(size + 2);
 			CHAR8 *cursor = data;
 			*(UINT32 *)cursor = LOAD_OPTION_ACTIVE;
 			cursor += sizeof (UINT32);
@@ -234,7 +235,7 @@ find_boot_option(EFI_DEVICE_PATH *dp, EFI_DEVICE_PATH *fulldp,
 		StrLen(label)*2 + 2 + DevicePathSize(dp) +
 		StrLen(arguments) * 2;
 
-	CHAR8 *data = AllocateZeroPool(size);
+	CHAR8 *data = AllocateZeroPool(size + 2);
 	if (!data)
 		return EFI_OUT_OF_RESOURCES;
 	CHAR8 *cursor = data;
@@ -328,7 +329,7 @@ update_boot_order(void)
 
 #ifdef DEBUG_FALLBACK
 	Print(L"nbootorder: %d\nBootOrder: ", size / sizeof (CHAR16));
-	int j;
+	UINTN j;
 	for (j = 0 ; j < size / sizeof (CHAR16); j++)
 		Print(L"%04x ", newbootorder[j]);
 	Print(L"\n");
@@ -395,7 +396,7 @@ add_to_boot_list(EFI_FILE_HANDLE fh, CHAR16 *dirname, CHAR16 *filename, CHAR16 *
 #ifdef DEBUG_FALLBACK
 	{
 	UINTN s = DevicePathSize(dp);
-	int i;
+	UINTN i;
 	UINT8 *dpv = (void *)dp;
 	for (i = 0; i < s; i++) {
 		if (i > 0 && i % 16 == 0)
@@ -791,12 +792,46 @@ try_start_first_option(EFI_HANDLE parent_image_handle)
 	return rc;
 }
 
+EFI_GUID SHIM_LOCK_GUID = { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} };
+extern EFI_STATUS
+efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab);
+
+static void
+__attribute__((__optimize__("0")))
+debug_hook(void)
+{
+	EFI_GUID guid = SHIM_LOCK_GUID;
+	UINT8 *data = NULL;
+	UINTN dataSize = 0;
+	EFI_STATUS efi_status;
+	volatile register int x = 0;
+	extern char _etext, _edata;
+
+	efi_status = get_variable(L"SHIM_DEBUG", &data, &dataSize, guid);
+	if (EFI_ERROR(efi_status)) {
+		return;
+	}
+
+	if (x)
+		return;
+
+	x = 1;
+	Print(L"add-symbol-file "DEBUGDIR
+	      L"fallback.debug %p -s .data %p\n", &_etext,
+	      &_edata);
+}
+
 EFI_STATUS
 efi_main(EFI_HANDLE image, EFI_SYSTEM_TABLE *systab)
 {
 	EFI_STATUS rc;
 
 	InitializeLib(image, systab);
+
+	/*
+	 * if SHIM_DEBUG is set, wait for a debugger to attach.
+	 */
+	debug_hook();
 
 	rc = uefi_call_wrapper(BS->HandleProtocol, 3, image, &LoadedImageProtocol, (void *)&this_image);
 	if (EFI_ERROR(rc)) {
