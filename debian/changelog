@@ -7,6 +7,8 @@ shim (0.9+1474479173.6c180c6-0ubuntu1) UNRELEASED; urgency=medium
   * New upstream release.
   * debian/copyright: patches should be BSD, like the rest of the upstream
     code.
+  * debian/patches/unused-variable: dropped; applied upstream.
+  * debian/patches/binutils-version-matching: dropped, fixed upstream.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Sep 2016 20:29:44 -0400
 
