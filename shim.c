@@ -39,6 +39,7 @@
 #include "PeImage.h"
 #include "shim.h"
 #include "netboot.h"
+#include "httpboot.h"
 #include "shim_cert.h"
 #include "replacements.h"
 #include "tpm.h"
@@ -51,8 +52,14 @@
 #include "console.h"
 #include "version.h"
 
-#define FALLBACK L"\\fallback.efi"
-#define MOK_MANAGER L"\\MokManager.efi"
+#include <stdarg.h>
+#include <openssl/x509.h>
+#include <openssl/x509v3.h>
+
+#define FALLBACK L"\\fb" EFI_ARCH L".efi"
+#define MOK_MANAGER L"\\mm" EFI_ARCH L".efi"
+
+#define OID_EKU_MODSIGN "1.3.6.1.4.1.2312.16.1.2"
 
 static EFI_SYSTEM_TABLE *systab;
 static EFI_HANDLE image_handle;
@@ -388,6 +395,38 @@ static BOOLEAN verify_x509(UINT8 *Cert, UINTN CertSize)
 	return TRUE;
 }
 
+static BOOLEAN verify_eku(UINT8 *Cert, UINTN CertSize)
+{
+	X509 *x509;
+	CONST UINT8 *Temp = Cert;
+	EXTENDED_KEY_USAGE *eku;
+	ASN1_OBJECT *module_signing;
+
+	module_signing = OBJ_nid2obj(OBJ_create(OID_EKU_MODSIGN, NULL, NULL));
+
+	x509 = d2i_X509 (NULL, &Temp, (long) CertSize);
+	if (x509 != NULL) {
+		eku = X509_get_ext_d2i(x509, NID_ext_key_usage, NULL, NULL);
+
+		if (eku) {
+			int i = 0;
+			for (i = 0; i < sk_ASN1_OBJECT_num(eku); i++) {
+				ASN1_OBJECT *key_usage = sk_ASN1_OBJECT_value(eku, i);
+
+				if (OBJ_cmp(module_signing, key_usage) == 0)
+					return FALSE;
+			}
+			EXTENDED_KEY_USAGE_free(eku);
+		}
+
+		X509_free(x509);
+	}
+
+	OBJ_cleanup();
+
+	return TRUE;
+}
+
 static CHECK_STATUS check_db_cert_in_ram(EFI_SIGNATURE_LIST *CertList,
 					 UINTN dbsize,
 					 WIN_CERTIFICATE_EFI_PKCS *data,
@@ -403,13 +442,15 @@ static CHECK_STATUS check_db_cert_in_ram(EFI_SIGNATURE_LIST *CertList,
 			Cert = (EFI_SIGNATURE_DATA *) ((UINT8 *) CertList + sizeof (EFI_SIGNATURE_LIST) + CertList->SignatureHeaderSize);
 			CertSize = CertList->SignatureSize - sizeof(EFI_GUID);
 			if (verify_x509(Cert->SignatureData, CertSize)) {
-				IsFound = AuthenticodeVerify (data->CertData,
-							      data->Hdr.dwLength - sizeof(data->Hdr),
-							      Cert->SignatureData,
-							      CertSize,
-							      hash, SHA256_DIGEST_SIZE);
-				if (IsFound)
-					return DATA_FOUND;
+				if (verify_eku(Cert->SignatureData, CertSize)) {
+					IsFound = AuthenticodeVerify (data->CertData,
+								      data->Hdr.dwLength - sizeof(data->Hdr),
+								      Cert->SignatureData,
+								      CertSize,
+								      hash, SHA256_DIGEST_SIZE);
+					if (IsFound)
+						return DATA_FOUND;
+				}
 			} else if (verbose) {
 				console_notify(L"Not a DER encoding x.509 Certificate");
 			}
@@ -914,11 +955,21 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 	unsigned int size = datasize;
 
 	if (context->SecDir->Size != 0) {
+		if (context->SecDir->Size >= size) {
+			perror(L"Certificate Database size is too large\n");
+			return EFI_INVALID_PARAMETER;
+		}
+
 		cert = ImageAddress (data, size,
 				     context->SecDir->VirtualAddress);
 
 		if (!cert) {
 			perror(L"Certificate located outside the image\n");
+			return EFI_INVALID_PARAMETER;
+		}
+
+		if (cert->Hdr.dwLength > context->SecDir->Size) {
+			perror(L"Certificate list size is inconsistent with PE headers");
 			return EFI_INVALID_PARAMETER;
 		}
 
@@ -931,7 +982,6 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 	}
 
 	status = generate_hash(data, datasize, context, sha256hash, sha1hash);
-
 	if (status != EFI_SUCCESS)
 		return status;
 
@@ -966,7 +1016,7 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 		 */
 		if (sizeof(shim_cert) &&
 		    AuthenticodeVerify(cert->CertData,
-			       context->SecDir->Size - sizeof(cert->Hdr),
+			       cert->Hdr.dwLength - sizeof(cert->Hdr),
 			       shim_cert, sizeof(shim_cert), sha256hash,
 			       SHA256_DIGEST_SIZE)) {
 			status = EFI_SUCCESS;
@@ -976,10 +1026,11 @@ static EFI_STATUS verify_buffer (char *data, int datasize,
 		/*
 		 * And finally, check against shim's built-in key
 		 */
-		if (vendor_cert_size && AuthenticodeVerify(cert->CertData,
-							context->SecDir->Size - sizeof(cert->Hdr),
-							vendor_cert, vendor_cert_size, sha256hash,
-							SHA256_DIGEST_SIZE)) {
+		if (vendor_cert_size &&
+		    AuthenticodeVerify(cert->CertData,
+				       cert->Hdr.dwLength - sizeof(cert->Hdr),
+				       vendor_cert, vendor_cert_size,
+				       sha256hash, SHA256_DIGEST_SIZE)) {
 			status = EFI_SUCCESS;
 			return status;
 		}
@@ -999,6 +1050,7 @@ static EFI_STATUS read_header(void *data, unsigned int datasize,
 	EFI_IMAGE_DOS_HEADER *DosHdr = data;
 	EFI_IMAGE_OPTIONAL_HEADER_UNION *PEHdr = data;
 	unsigned long HeaderWithoutDataDir, SectionHeaderOffset, OptHeaderSize;
+	unsigned long FileAlignment = 0;
 
 	if (datasize < sizeof (PEHdr->Pe32)) {
 		perror(L"Invalid image\n");
@@ -1018,17 +1070,28 @@ static EFI_STATUS read_header(void *data, unsigned int datasize,
 		context->SizeOfHeaders = PEHdr->Pe32Plus.OptionalHeader.SizeOfHeaders;
 		context->ImageSize = PEHdr->Pe32Plus.OptionalHeader.SizeOfImage;
 		context->SectionAlignment = PEHdr->Pe32Plus.OptionalHeader.SectionAlignment;
+		FileAlignment = PEHdr->Pe32Plus.OptionalHeader.FileAlignment;
 		OptHeaderSize = sizeof(EFI_IMAGE_OPTIONAL_HEADER64);
 	} else {
 		context->NumberOfRvaAndSizes = PEHdr->Pe32.OptionalHeader.NumberOfRvaAndSizes;
 		context->SizeOfHeaders = PEHdr->Pe32.OptionalHeader.SizeOfHeaders;
 		context->ImageSize = (UINT64)PEHdr->Pe32.OptionalHeader.SizeOfImage;
 		context->SectionAlignment = PEHdr->Pe32.OptionalHeader.SectionAlignment;
+		FileAlignment = PEHdr->Pe32.OptionalHeader.FileAlignment;
 		OptHeaderSize = sizeof(EFI_IMAGE_OPTIONAL_HEADER32);
 	}
 
-	if (context->SectionAlignment < 0x1000)
-		context->SectionAlignment = 0x1000;
+	if (FileAlignment % 2 != 0) {
+		perror(L"File Alignment is invalid (%d)\n", FileAlignment);
+		return EFI_UNSUPPORTED;
+	}
+	if (FileAlignment == 0)
+		FileAlignment = 0x200;
+	if (context->SectionAlignment == 0)
+		context->SectionAlignment = PAGE_SIZE;
+	if (context->SectionAlignment < FileAlignment)
+		context->SectionAlignment = FileAlignment;
+
 	context->NumberOfSections = PEHdr->Pe32.FileHeader.NumberOfSections;
 
 	if (EFI_IMAGE_NUMBER_OF_DIRECTORY_ENTRIES < context->NumberOfRvaAndSizes) {
@@ -1261,12 +1324,22 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 			return EFI_UNSUPPORTED;
 		}
 
-		if (Section->SizeOfRawData > 0)
-			CopyMem(base, data + Section->PointerToRawData, Section->SizeOfRawData);
+		if (Section->Characteristics & EFI_IMAGE_SCN_CNT_UNINITIALIZED_DATA) {
+			ZeroMem(base, Section->Misc.VirtualSize);
+		} else {
+			if (Section->PointerToRawData < context.SizeOfHeaders) {
+				perror(L"Section %d is inside image headers\n", i);
+				return EFI_UNSUPPORTED;
+			}
 
-		if (Section->SizeOfRawData < Section->Misc.VirtualSize)
-			ZeroMem (base + Section->SizeOfRawData,
-				 Section->Misc.VirtualSize - Section->SizeOfRawData);
+			if (Section->SizeOfRawData > 0)
+				CopyMem(base, data + Section->PointerToRawData,
+					Section->SizeOfRawData);
+
+			if (Section->SizeOfRawData < Section->Misc.VirtualSize)
+				ZeroMem(base + Section->SizeOfRawData,
+					Section->Misc.VirtualSize - Section->SizeOfRawData);
+		}
 	}
 
 	if (context.NumberOfRvaAndSizes <= EFI_IMAGE_DIRECTORY_ENTRY_BASERELOC) {
@@ -1371,7 +1444,6 @@ should_use_fallback(EFI_HANDLE image_handle)
 		 * Print(L"Could not open \"\\EFI\\BOOT%s\": %d\n", FALLBACK,
 		 * 	 rc);
 		 */
-		uefi_call_wrapper(vh->Close, 1, vh);
 		goto error;
 	}
 
@@ -1701,6 +1773,17 @@ EFI_STATUS start_image(EFI_HANDLE image_handle, CHAR16 *ImagePath)
 		}
 		data = sourcebuffer;
 		datasize = sourcesize;
+#if  defined(ENABLE_HTTPBOOT)
+	} else if (find_httpboot(li->DeviceHandle)) {
+		efi_status = httpboot_fetch_buffer (image_handle, &sourcebuffer,
+						    &sourcesize);
+		if (efi_status != EFI_SUCCESS) {
+			perror(L"Unable to fetch HTTP image: %r\n", efi_status);
+			return efi_status;
+		}
+		data = sourcebuffer;
+		datasize = sourcesize;
+#endif
 	} else {
 		/*
 		 * Read the new executable off disk
@@ -2037,7 +2120,7 @@ static EFI_STATUS check_mok_db (void)
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS status = EFI_SUCCESS;
 	UINT8 MokDBState;
-	UINTN MokDBStateSize = sizeof(MokDBStateSize);
+	UINTN MokDBStateSize = sizeof(MokDBState);
 	UINT32 attributes;
 
 	status = uefi_call_wrapper(RT->GetVariable, 5, L"MokDBState", &shim_lock_guid,
@@ -2526,7 +2609,7 @@ debug_hook(void)
 	}
 
 	Print(L"add-symbol-file "DEBUGDIR
-	      L"shim.debug 0x%08x -s .data 0x%08x\n", &_text,
+	      L"shim" EFI_ARCH L".efi.debug 0x%08x -s .data 0x%08x\n", &_text,
 	      &_data);
 
 	Print(L"Pausing for debugger attachment.\n");

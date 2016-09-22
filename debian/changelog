@@ -1,13 +1,14 @@
-shim (0.9+1465500757.14a5905-0ubuntu2) UNRELEASED; urgency=medium
+shim (0.9+1474479173.6c180c6-0ubuntu1) UNRELEASED; urgency=medium
 
   [ Helen Koike ]
   * debian/copyright: add OpenSSL license 
 
   [ Mathieu Trudel-Lapierre ]
+  * New upstream release.
   * debian/copyright: patches should be BSD, like the rest of the upstream
     code.
 
- -- Helen Koike <helen.koike@collabora.com>  Wed, 14 Sep 2016 16:34:52 -0300
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Sep 2016 20:29:44 -0400
 
 shim (0.9+1465500757.14a5905-0ubuntu1) yakkety; urgency=medium
 
