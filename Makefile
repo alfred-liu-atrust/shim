@@ -9,15 +9,12 @@ LD		= $(CROSS_COMPILE)ld
 OBJCOPY		= $(CROSS_COMPILE)objcopy
 
 ARCH		= $(shell $(CC) -dumpmachine | cut -f1 -d- | sed s,i[3456789]86,ia32,)
-OBJCOPY_GTE224  = $(shell expr `$(OBJCOPY) --version |grep ^"GNU objcopy" | sed 's/^.version //g' | cut -f1-2 -d.` \>= 2.24)
+OBJCOPY_GTE224  = $(shell expr `$(OBJCOPY) --version |grep ^"GNU objcopy" | sed 's/^.*\((.*)\|version\) //g' | cut -f1-2 -d.` \>= 2.24)
 
 SUBDIRS		= Cryptlib lib
 
-LIB_PATH	= /usr/lib64
-
 EFI_INCLUDE	:= /usr/include/efi
 EFI_INCLUDES	= -nostdinc -ICryptlib -ICryptlib/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol -I$(shell pwd)/include
-EFI_PATH	:= /usr/lib64/gnuefi
 
 LIB_GCC		= $(shell $(CC) -print-libgcc-file-name)
 EFI_LIBS	= -lefi -lgnuefi --start-group Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a --end-group $(LIB_GCC) 
@@ -33,9 +30,16 @@ CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
 		  "-DDEFAULT_LOADER=L\"$(DEFAULT_LOADER)\"" \
 		  "-DDEFAULT_LOADER_CHAR=\"$(DEFAULT_LOADER)\"" \
 		  $(EFI_INCLUDES)
+SHIMNAME	= shim
+MMNAME		= MokManager
+FBNAME		= fallback
 
 ifneq ($(origin OVERRIDE_SECURITY_POLICY), undefined)
 	CFLAGS	+= -DOVERRIDE_SECURITY_POLICY
+endif
+
+ifneq ($(origin ENABLE_HTTPBOOT), undefined)
+	CFLAGS	+= -DENABLE_HTTPBOOT
 endif
 
 ifeq ($(ARCH),x86_64)
@@ -43,18 +47,34 @@ ifeq ($(ARCH),x86_64)
 		-maccumulate-outgoing-args \
 		-DEFI_FUNCTION_WRAPPER -DGNU_EFI_USE_MS_ABI \
 		-DNO_BUILTIN_VA_FUNCS \
-		"-DEFI_ARCH=L\"x64\"" \
+		-DMDE_CPU_X64 "-DEFI_ARCH=L\"x64\"" -DPAGE_SIZE=4096 \
 		"-DDEBUGDIR=L\"/usr/lib/debug/usr/share/shim/x64-$(VERSION)$(RELEASE)/\""
+	MMNAME	= mmx64
+	FBNAME	= fbx64
+	SHIMNAME= shimx64
+	EFI_PATH:=/usr/lib64/gnuefi
+	LIB_PATH:=/usr/lib64
+
 endif
 ifeq ($(ARCH),ia32)
 	CFLAGS	+= -mno-mmx -mno-sse -mno-red-zone -nostdinc \
 		-maccumulate-outgoing-args -m32 \
-		"-DEFI_ARCH=L\"ia32\"" \
+		-DMDE_CPU_IA32 "-DEFI_ARCH=L\"ia32\"" -DPAGE_SIZE=4096 \
 		"-DDEBUGDIR=L\"/usr/lib/debug/usr/share/shim/ia32-$(VERSION)$(RELEASE)/\""
+	MMNAME	= mmia32
+	FBNAME	= fbia32
+	SHIMNAME= shimia32
+	EFI_PATH:=/usr/lib/gnuefi
+	LIB_PATH:=/usr/lib
 endif
 ifeq ($(ARCH),aarch64)
-	CFLAGS += "-DEFI_ARCH=L\"aa64\"" \
+	CFLAGS += -DMDE_CPU_AARCH64 "-DEFI_ARCH=L\"aa64\"" -DPAGE_SIZE=4096 \
 		"-DDEBUGDIR=L\"/usr/lib/debug/usr/share/shim/aa64-$(VERSION)$(RELEASE)/\""
+	MMNAME	= mmaa64
+	FBNAME	= fbaa64
+	SHIMNAME= shimaa64
+	EFI_PATH:=/usr/lib64/gnuefi
+	LIB_PATH:=/usr/lib64
 endif
 
 ifneq ($(origin VENDOR_CERT_FILE), undefined)
@@ -66,7 +86,7 @@ endif
 
 LDFLAGS		= --hash-style=sysv -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsymbolic -L$(EFI_PATH) -L$(LIB_PATH) -LCryptlib -LCryptlib/OpenSSL $(EFI_CRT_OBJS) --build-id=sha1
 
-TARGET	= shim.efi MokManager.efi.signed fallback.efi.signed
+TARGET	= $(SHIMNAME).efi $(MMNAME).efi.signed $(FBNAME).efi.signed
 OBJS	= shim.o netboot.o cert.o replacements.o tpm.o version.o
 KEYS	= shim_cert.h ocsp.* ca.* shim.crt shim.csr shim.p12 shim.pem shim.key shim.cer
 SOURCES	= shim.c shim.h netboot.c include/PeImage.h include/wincert.h include/console.h replacements.c replacements.h tpm.c tpm.h version.c version.h
@@ -74,6 +94,11 @@ MOK_OBJS = MokManager.o PasswordCrypt.o crypt_blowfish.o
 MOK_SOURCES = MokManager.c shim.h include/console.h PasswordCrypt.c PasswordCrypt.h crypt_blowfish.c crypt_blowfish.h
 FALLBACK_OBJS = fallback.o
 FALLBACK_SRCS = fallback.c
+
+ifneq ($(origin ENABLE_HTTPBOOT), undefined)
+	OBJS += httpboot.o
+	SOURCES += httpboot.c httpboot.h
+endif
 
 all: $(TARGET)
 
@@ -105,17 +130,17 @@ shim.o: $(wildcard *.h)
 cert.o : cert.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-shim.so: $(OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
+$(SHIMNAME).so: $(OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
 	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS)
 
 fallback.o: $(FALLBACK_SRCS)
 
-fallback.so: $(FALLBACK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
+$(FBNAME).so: $(FALLBACK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
 	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS)
 
 MokManager.o: $(MOK_SOURCES)
 
-MokManager.so: $(MOK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
+$(MMNAME).so: $(MOK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
 	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS) lib/lib.a
 
 Cryptlib/libcryptlib.a:

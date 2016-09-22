@@ -3,6 +3,9 @@
 #include <stdarg.h>
 #include <Library/BaseCryptLib.h>
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
+#include <openssl/asn1.h>
+#include <openssl/bn.h>
 #include "shim.h"
 #include "PeImage.h"
 #include "PasswordCrypt.h"
@@ -22,8 +25,6 @@
 #ifndef SHIM_VENDOR
 #define SHIM_VENDOR L"Shim"
 #endif
-
-#define EFI_VARIABLE_APPEND_WRITE 0x00000040
 
 EFI_GUID SHIM_LOCK_GUID = { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} };
 EFI_GUID EFI_CERT_SHA224_GUID = { 0xb6e5233, 0xa65c, 0x44c9, {0x94, 0x7, 0xd9, 0xab, 0x83, 0xbf, 0xc8, 0xbd} };
@@ -339,6 +340,7 @@ static void show_x509_info (X509 *X509Cert, UINT8 *hash)
 	CHAR16 *subject = NULL;
 	CHAR16 *from = NULL;
 	CHAR16 *until = NULL;
+	EXTENDED_KEY_USAGE *extusage;
 	POOL_PRINT hash_string1;
 	POOL_PRINT hash_string2;
 	POOL_PRINT serial_string;
@@ -406,7 +408,32 @@ static void show_x509_info (X509 *X509Cert, UINT8 *hash)
 		return;
 
 	i = 0;
-	text = AllocateZeroPool(sizeof(CHAR16 *) * (fields*3 + 1));
+
+	extusage = X509_get_ext_d2i(X509Cert, NID_ext_key_usage, NULL, NULL);
+	text = AllocateZeroPool(sizeof(CHAR16 *) * (fields*3 + sk_ASN1_OBJECT_num(extusage) + 3));
+
+	if (extusage) {
+		int j = 0;
+
+		text[i++] = StrDuplicate(L"[Extended Key Usage]");
+
+		for (j = 0; j < sk_ASN1_OBJECT_num(extusage); j++) {
+			POOL_PRINT extkeyusage;
+			ASN1_OBJECT *obj = sk_ASN1_OBJECT_value(extusage, j);
+			int buflen = 80;
+			char buf[buflen];
+
+			ZeroMem(&extkeyusage, sizeof(extkeyusage));
+
+			OBJ_obj2txt(buf, buflen, obj, 0);
+			CatPrint(&extkeyusage, L"OID: %a", buf);
+			text[i++] = StrDuplicate(extkeyusage.str);
+			FreePool(extkeyusage.str);
+		}
+		text[i++] = StrDuplicate(L"");
+		EXTENDED_KEY_USAGE_free(extusage);
+	}
+
 	if (serial_string.str) {
 		text[i++] = StrDuplicate(L"[Serial Number]");
 		text[i++] = serial_string.str;
@@ -863,6 +890,67 @@ static EFI_STATUS match_password (PASSWORD_CRYPT *pw_crypt,
 	return EFI_SUCCESS;
 }
 
+static EFI_STATUS write_db (CHAR16 *db_name, void *MokNew, UINTN MokNewSize)
+{
+	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
+	EFI_STATUS status;
+	UINT32 attributes;
+	void *old_data = NULL;
+	void *new_data = NULL;
+	UINTN old_size;
+	UINTN new_size;
+
+	status = uefi_call_wrapper(RT->SetVariable, 5, db_name,
+				   &shim_lock_guid,
+				   EFI_VARIABLE_NON_VOLATILE
+				   | EFI_VARIABLE_BOOTSERVICE_ACCESS
+				   | EFI_VARIABLE_APPEND_WRITE,
+				   MokNewSize, MokNew);
+	if (status == EFI_SUCCESS || status != EFI_INVALID_PARAMETER) {
+		return status;
+	}
+
+	status = get_variable_attr(db_name, (UINT8 **)&old_data, &old_size,
+				   shim_lock_guid, &attributes);
+	if (EFI_ERROR(status) && status != EFI_NOT_FOUND) {
+		return status;
+	}
+
+	/* Check if the old db is compromised or not */
+	if (attributes & EFI_VARIABLE_RUNTIME_ACCESS) {
+		FreePool(old_data);
+		old_data = NULL;
+		old_size = 0;
+	}
+
+	new_size = old_size + MokNewSize;
+	new_data = AllocatePool(new_size);
+	if (new_data == NULL) {
+		status = EFI_OUT_OF_RESOURCES;
+		goto out;
+	}
+
+	CopyMem(new_data, old_data, old_size);
+	CopyMem(new_data + old_size, MokNew, MokNewSize);
+
+	status = uefi_call_wrapper(RT->SetVariable, 5, db_name,
+				   &shim_lock_guid,
+				   EFI_VARIABLE_NON_VOLATILE
+				   | EFI_VARIABLE_BOOTSERVICE_ACCESS,
+				   new_size, new_data);
+
+out:
+	if (old_size > 0) {
+		FreePool(old_data);
+	}
+
+	if (new_data != NULL) {
+		FreePool(new_data);
+	}
+
+	return status;
+}
+
 static EFI_STATUS store_keys (void *MokNew, UINTN MokNewSize, int authenticate,
 			      BOOLEAN MokX)
 {
@@ -917,12 +1005,7 @@ static EFI_STATUS store_keys (void *MokNew, UINTN MokNewSize, int authenticate,
 					       0, NULL);
 	} else {
 		/* Write new MOK */
-		efi_status = uefi_call_wrapper(RT->SetVariable, 5, db_name,
-					       &shim_lock_guid,
-					       EFI_VARIABLE_NON_VOLATILE
-					       | EFI_VARIABLE_BOOTSERVICE_ACCESS
-					       | EFI_VARIABLE_APPEND_WRITE,
-					       MokNewSize, MokNew);
+		efi_status = write_db(db_name, MokNew, MokNewSize);
 	}
 
 	if (efi_status != EFI_SUCCESS) {
