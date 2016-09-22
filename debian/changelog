@@ -9,6 +9,9 @@ shim (0.9+1474479173.6c180c6-0ubuntu1) UNRELEASED; urgency=medium
     code.
   * debian/patches/unused-variable: dropped; applied upstream.
   * debian/patches/binutils-version-matching: dropped, fixed upstream.
+  * debian/shim.install: built EFI binaries were renamed; update our install
+    file to properly pick up shim (shim$arch), MokManager (mm$arch), and
+    fallback (fb$arch).
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Sep 2016 20:29:44 -0400
 
