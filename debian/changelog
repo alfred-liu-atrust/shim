@@ -1,3 +1,18 @@
+shim (0.9+1465500757.14a5905-1) unstable; urgency=medium
+
+  * Initial Debian upload.  Closes: #820052.
+  * Update Standards-Version.
+  * Embed the newly-minted Debian CA certificate.
+  * Vendorize debian/rules so that the same package can be used in both
+    Debian and Ubuntu without modification.
+  * Fix debian/copyright to match the spec (last match wins, not first)
+  * Fix shim.efi to not be executable.
+  * Add watchfile.
+  * Support parallel builds, because eh why not
+  * Update Vcs-Bzr.
+
+ -- Steve Langasek <vorlon@debian.org>  Tue, 23 Aug 2016 05:23:42 +0000
+
 shim (0.9+1465500757.14a5905-0ubuntu1) yakkety; urgency=medium
 
   * New upstream release.
