@@ -1,8 +1,18 @@
-shim (0.9+1474479173.6c180c6-1) UNRELEASED; urgency=medium
+shim (0.9+1474479173.6c180c6-1) unstable; urgency=medium
 
+  * Initial Debian upload.  Closes: #820052.
+  * Update Standards-Version.
+  * Embed the newly-minted Debian CA certificate.
+  * Vendorize debian/rules so that the same package can be used in both
+    Debian and Ubuntu without modification.
+  * Fix debian/copyright to match the spec (last match wins, not first)
+  * Fix shim.efi to not be executable.
+  * Add watchfile.
+  * Support parallel builds, because eh why not
+  * Update Vcs-Bzr.
   * Resync with Ubuntu, including patch to fix debian/copyright.
 
- -- Steve Langasek <vorlon@debian.org>  Sat,  1 Oct 2016 14:15:00 -0700
+ -- Steve Langasek <vorlon@debian.org>  Sat, 01 Oct 2016 14:18:53 -0700
 
 shim (0.9+1474479173.6c180c6-0ubuntu1) UNRELEASED; urgency=medium
 
@@ -20,21 +30,6 @@ shim (0.9+1474479173.6c180c6-0ubuntu1) UNRELEASED; urgency=medium
     fallback (fb$arch).
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 21 Sep 2016 20:29:44 -0400
-
-shim (0.9+1465500757.14a5905-1) unstable; urgency=medium
-
-  * Initial Debian upload.  Closes: #820052.
-  * Update Standards-Version.
-  * Embed the newly-minted Debian CA certificate.
-  * Vendorize debian/rules so that the same package can be used in both
-    Debian and Ubuntu without modification.
-  * Fix debian/copyright to match the spec (last match wins, not first)
-  * Fix shim.efi to not be executable.
-  * Add watchfile.
-  * Support parallel builds, because eh why not
-  * Update Vcs-Bzr.
-
- -- Steve Langasek <vorlon@debian.org>  Tue, 23 Aug 2016 05:23:42 +0000
 
 shim (0.9+1465500757.14a5905-0ubuntu1) yakkety; urgency=medium
 
