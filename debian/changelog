@@ -15,9 +15,9 @@ shim (0.9+1474479173.6c180c6-1) unstable; urgency=medium
 
   [ Julien Cristau ]
   * Add some missing copyright holders in d/copyright, update
-    Upstream-Contact.
+    Upstream-Contact.  Thanks to Helen Koike for the help.
 
- -- Julien Cristau <jcristau@debian.org>  Thu, 13 Oct 2016 09:07:20 +0200
+ -- Julien Cristau <jcristau@debian.org>  Sat, 15 Oct 2016 15:17:34 +0200
 
 shim (0.9+1474479173.6c180c6-0ubuntu1) UNRELEASED; urgency=medium
 
