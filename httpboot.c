@@ -110,8 +110,10 @@ find_httpboot (EFI_HANDLE device)
 	URI_DEVICE_PATH *UriNode;
 	UINTN uri_size;
 
-	if (!uri)
+	if (uri) {
 		FreePool(uri);
+		uri = NULL;
+	}
 
 	devpath = DevicePathFromHandle(device);
 	if (!devpath) {
@@ -184,6 +186,9 @@ generate_next_uri (CONST CHAR8 *current_uri, CONST CHAR8 *next_loader,
 	if (strncmpa(current_uri, (CHAR8 *)"http://", 7) == 0) {
 		ptr = current_uri + 7;
 		count += 7;
+	} else if (strncmpa(current_uri, (CHAR8 *)"https://", 8) == 0) {
+		ptr = current_uri + 8;
+		count += 8;
 	} else {
 		return EFI_INVALID_PARAMETER;
 	}
@@ -216,6 +221,8 @@ extract_hostname (CONST CHAR8 *url, CHAR8 **hostname)
 
 	if (strncmpa(url, (CHAR8 *)"http://", 7) == 0)
 		start = url + 7;
+	else if (strncmpa(url, (CHAR8 *)"https://", 8) == 0)
+		start = url + 8;
 	else
 		return EFI_INVALID_PARAMETER;
 
@@ -501,7 +508,7 @@ no_event:
 }
 
 static EFI_STATUS
-receive_http_response(EFI_HTTP_PROTOCOL *http, VOID **buffer, UINTN *buf_size)
+receive_http_response(EFI_HTTP_PROTOCOL *http, VOID **buffer, UINT64 *buf_size)
 {
 	EFI_HTTP_TOKEN rx_token;
 	EFI_HTTP_MESSAGE rx_message;
@@ -640,7 +647,7 @@ no_event:
 static EFI_STATUS
 http_fetch (EFI_HANDLE image, EFI_HANDLE device,
 	    CHAR8 *hostname, CHAR8 *uri, BOOLEAN is_ip6,
-	    VOID **buffer, UINTN *buf_size)
+	    VOID **buffer, UINT64 *buf_size)
 {
 	EFI_GUID http_binding_guid = EFI_HTTP_SERVICE_BINDING_PROTOCOL_GUID;
 	EFI_GUID http_protocol_guid = EFI_HTTP_PROTOCOL_GUID;
@@ -708,7 +715,7 @@ error:
 }
 
 EFI_STATUS
-httpboot_fetch_buffer (EFI_HANDLE image, VOID **buffer, UINTN *buf_size)
+httpboot_fetch_buffer (EFI_HANDLE image, VOID **buffer, UINT64 *buf_size)
 {
 	EFI_STATUS status;
 	EFI_HANDLE nic;

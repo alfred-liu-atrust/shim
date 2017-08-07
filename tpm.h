@@ -1,6 +1,9 @@
 #define EFI_TPM_GUID {0xf541796d, 0xa62e, 0x4954, {0xa7, 0x75, 0x95, 0x84, 0xf6, 0x1b, 0x9c, 0xdd }};
 #define EFI_TPM2_GUID {0x607f766c, 0x7455, 0x42be, {0x93, 0x0b, 0xe4, 0xd7, 0x6d, 0xb2, 0x72, 0x0f }};
 
+#define TPM_ALG_SHA 0x00000004
+#define EV_IPL      0x0000000d
+
 EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 			 const CHAR8 *description);
 
@@ -61,28 +64,33 @@ struct efi_tpm_protocol
 
 typedef struct efi_tpm_protocol efi_tpm_protocol_t;
 
+typedef uint32_t TREE_EVENT_LOG_BITMAP;
+
 typedef uint32_t EFI_TCG2_EVENT_LOG_BITMAP;
 typedef uint32_t EFI_TCG2_EVENT_LOG_FORMAT;
 typedef uint32_t EFI_TCG2_EVENT_ALGORITHM_BITMAP;
 
+typedef struct tdTREE_VERSION {
+  uint8_t Major;
+  uint8_t Minor;
+} TREE_VERSION;
+
 typedef struct tdEFI_TCG2_VERSION {
   uint8_t Major;
   uint8_t Minor;
-} __attribute__ ((packed)) EFI_TCG2_VERSION;
+} EFI_TCG2_VERSION;
 
-typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0 {
+typedef struct tdTREE_BOOT_SERVICE_CAPABILITY {
   uint8_t Size;
-  EFI_TCG2_VERSION StructureVersion;
-  EFI_TCG2_VERSION ProtocolVersion;
-  EFI_TCG2_EVENT_ALGORITHM_BITMAP HashAlgorithmBitmap;
-  EFI_TCG2_EVENT_LOG_BITMAP SupportedEventLogs;
-  BOOLEAN TPMPresentFlag;
+  TREE_VERSION StructureVersion;
+  TREE_VERSION ProtocolVersion;
+  uint32_t HashAlgorithmBitmap;
+  TREE_EVENT_LOG_BITMAP SupportedEventLogs;
+  BOOLEAN TrEEPresentFlag;
   uint16_t MaxCommandSize;
   uint16_t MaxResponseSize;
   uint32_t ManufacturerID;
-  uint32_t NumberOfPcrBanks;
-  EFI_TCG2_EVENT_ALGORITHM_BITMAP ActivePcrBanks;
-} EFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0;
+} TREE_BOOT_SERVICE_CAPABILITY;
 
 typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY {
   uint8_t Size;
@@ -96,7 +104,7 @@ typedef struct tdEFI_TCG2_BOOT_SERVICE_CAPABILITY {
   uint32_t ManufacturerID;
   uint32_t NumberOfPcrBanks;
   EFI_TCG2_EVENT_ALGORITHM_BITMAP ActivePcrBanks;
-} __attribute__ ((packed))  EFI_TCG2_BOOT_SERVICE_CAPABILITY;
+} EFI_TCG2_BOOT_SERVICE_CAPABILITY;
 
 typedef uint32_t TCG_PCRINDEX;
 typedef uint32_t TCG_EVENTTYPE;
@@ -113,6 +121,9 @@ typedef struct tdEFI_TCG2_EVENT {
   EFI_TCG2_EVENT_HEADER Header;
   uint8_t Event[1];
 } __attribute__ ((packed)) EFI_TCG2_EVENT;
+
+#define EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2 0x00000001
+#define EFI_TCG2_EVENT_LOG_FORMAT_TCG_2   0x00000002
 
 struct efi_tpm2_protocol
 {

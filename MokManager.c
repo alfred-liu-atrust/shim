@@ -379,14 +379,14 @@ static void show_x509_info (X509 *X509Cert, UINT8 *hash)
 			fields++;
 	}
 
-	time = X509_get_notBefore(X509Cert);
+	time = X509_getm_notBefore(X509Cert);
 	if (time) {
 		from = get_x509_time(time);
 		if (from)
 			fields++;
 	}
 
-	time = X509_get_notAfter(X509Cert);
+	time = X509_getm_notAfter(X509Cert);
 	if (time) {
 		until = get_x509_time(time);
 		if (until)
@@ -786,6 +786,14 @@ static void console_restore_mode (SIMPLE_TEXT_OUTPUT_MODE *SavedMode)
 			  SavedMode->Attribute);
 }
 
+static INTN reset_system ()
+{
+	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm,
+			  EFI_SUCCESS, 0, NULL);
+	console_notify(L"Failed to reboot\n");
+	return -1;
+}
+
 static UINT32 get_password (CHAR16 *prompt, CHAR16 *password, UINT32 max)
 {
 	SIMPLE_TEXT_OUTPUT_MODE SavedMode;
@@ -1016,7 +1024,7 @@ static EFI_STATUS store_keys (void *MokNew, UINTN MokNewSize, int authenticate,
 	return EFI_SUCCESS;
 }
 
-static INTN mok_enrollment_prompt (void *MokNew, UINTN MokNewSize, int auth,
+static EFI_STATUS mok_enrollment_prompt (void *MokNew, UINTN MokNewSize, int auth,
 				    BOOLEAN MokX)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
@@ -1028,17 +1036,18 @@ static INTN mok_enrollment_prompt (void *MokNew, UINTN MokNewSize, int auth,
 	else
 		title = L"[Enroll MOK]";
 
-	if (list_keys(MokNew, MokNewSize, title) != EFI_SUCCESS)
-		return 0;
+	efi_status = list_keys(MokNew, MokNewSize, title);
+	if (efi_status != EFI_SUCCESS)
+		return efi_status;
 
 	if (console_yes_no((CHAR16 *[]){L"Enroll the key(s)?", NULL}) == 0)
-		return 0;
+		return EFI_ABORTED;
 
 	efi_status = store_keys(MokNew, MokNewSize, auth, MokX);
 
 	if (efi_status != EFI_SUCCESS) {
 		console_notify(L"Failed to enroll keys\n");
-		return -1;
+		return efi_status;
 	}
 
 	if (auth) {
@@ -1050,17 +1059,16 @@ static INTN mok_enrollment_prompt (void *MokNew, UINTN MokNewSize, int auth,
 			LibDeleteVariable(L"MokAuth", &shim_lock_guid);
 		}
 
-		console_notify(L"The system must now be rebooted");
-		uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm,
-				  EFI_SUCCESS, 0, NULL);
-		console_notify(L"Failed to reboot");
-		return -1;
+		if (MokNew)
+			FreePool (MokNew);
+
+		return EFI_SUCCESS;
 	}
 
-	return 0;
+	return EFI_UNSUPPORTED;
 }
 
-static INTN mok_reset_prompt (BOOLEAN MokX)
+static EFI_STATUS mok_reset_prompt (BOOLEAN MokX)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS efi_status;
@@ -1073,13 +1081,13 @@ static INTN mok_reset_prompt (BOOLEAN MokX)
 	else
 		prompt = L"Erase all stored keys in MokList?";
 	if (console_yes_no((CHAR16 *[]){prompt, NULL }) == 0)
-		return 0;
+		return EFI_ABORTED;
 
 	efi_status = store_keys(NULL, 0, TRUE, MokX);
 
 	if (efi_status != EFI_SUCCESS) {
 		console_notify(L"Failed to erase keys\n");
-		return -1;
+		return efi_status;
 	}
 
 	if (MokX) {
@@ -1090,11 +1098,7 @@ static INTN mok_reset_prompt (BOOLEAN MokX)
 		LibDeleteVariable(L"MokAuth", &shim_lock_guid);
 	}
 
-	console_notify(L"The system must now be rebooted");
-	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm,
-			  EFI_SUCCESS, 0, NULL);
-	console_notify(L"Failed to reboot\n");
-	return -1;
+	return EFI_SUCCESS;
 }
 
 static EFI_STATUS write_back_mok_list (MokListNode *list, INTN key_num,
@@ -1427,7 +1431,7 @@ error:
 	return efi_status;
 }
 
-static INTN mok_deletion_prompt (void *MokDel, UINTN MokDelSize, BOOLEAN MokX)
+static EFI_STATUS mok_deletion_prompt (void *MokDel, UINTN MokDelSize, BOOLEAN MokX)
 {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS efi_status;
@@ -1438,18 +1442,18 @@ static INTN mok_deletion_prompt (void *MokDel, UINTN MokDelSize, BOOLEAN MokX)
 	else
 		title = L"[Delete MOK]";
 
-	if (list_keys(MokDel, MokDelSize, title) != EFI_SUCCESS) {
-		return 0;
-	}
+	efi_status = list_keys(MokDel, MokDelSize, title);
+	if (efi_status != EFI_SUCCESS)
+		return efi_status;
 
-        if (console_yes_no((CHAR16 *[]){L"Delete the key(s)?", NULL}) == 0)
-                return 0;
+	if (console_yes_no((CHAR16 *[]){L"Delete the key(s)?", NULL}) == 0)
+		return EFI_ABORTED;
 
 	efi_status = delete_keys(MokDel, MokDelSize, MokX);
 
 	if (efi_status != EFI_SUCCESS) {
 		console_notify(L"Failed to delete keys");
-		return -1;
+		return efi_status;
 	}
 
 	if (MokX) {
@@ -1460,11 +1464,10 @@ static INTN mok_deletion_prompt (void *MokDel, UINTN MokDelSize, BOOLEAN MokX)
 		LibDeleteVariable(L"MokDelAuth", &shim_lock_guid);
 	}
 
-	console_notify(L"The system must now be rebooted");
-	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm,
-			  EFI_SUCCESS, 0, NULL);
-	console_notify(L"Failed to reboot");
-	return -1;
+	if (MokDel)
+		FreePool(MokDel);
+
+	return EFI_SUCCESS;
 }
 
 static CHAR16 get_password_charater (CHAR16 *prompt)
@@ -1494,7 +1497,7 @@ static CHAR16 get_password_charater (CHAR16 *prompt)
 	return character;
 }
 
-static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
+static EFI_STATUS mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS efi_status;
 	SIMPLE_TEXT_OUTPUT_MODE SavedMode;
@@ -1509,7 +1512,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 
 	if (MokSBSize != sizeof(MokSBvar)) {
 		console_notify(L"Invalid MokSB variable contents");
-		return -1;
+		return EFI_INVALID_PARAMETER;
 	}
 
 	uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -1538,7 +1541,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 		str = PoolPrint(L"Enter password character %d: ", pos1 + 1);
 		if (!str) {
 			console_errorbox(L"Failed to allocate buffer");
-			return -1;
+			return EFI_OUT_OF_RESOURCES;
 		}
 		pass1 = get_password_charater(str);
 		FreePool(str);
@@ -1546,7 +1549,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 		str = PoolPrint(L"Enter password character %d: ", pos2 + 1);
 		if (!str) {
 			console_errorbox(L"Failed to allocate buffer");
-			return -1;
+			return EFI_OUT_OF_RESOURCES;
 		}
 		pass2 = get_password_charater(str);
 		FreePool(str);
@@ -1554,7 +1557,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 		str = PoolPrint(L"Enter password character %d: ", pos3 + 1);
 		if (!str) {
 			console_errorbox(L"Failed to allocate buffer");
-			return -1;
+			return EFI_OUT_OF_RESOURCES;
 		}
 		pass3 = get_password_charater(str);
 		FreePool(str);
@@ -1571,7 +1574,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 
 	if (fail_count >= 3) {
 		console_notify(L"Password limit reached");
-		return -1;
+		return EFI_ACCESS_DENIED;
 	}
 
 	if (var->MokSBState == 0)
@@ -1581,7 +1584,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 
 	if (ret == 0) {
 		LibDeleteVariable(L"MokSB", &shim_lock_guid);
-		return -1;
+		return EFI_ABORTED;
 	}
 
 	if (var->MokSBState == 0) {
@@ -1593,7 +1596,7 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 					       1, &sbval);
 		if (efi_status != EFI_SUCCESS) {
 			console_notify(L"Failed to set Secure Boot state");
-			return -1;
+			return efi_status;
 		}
 	} else {
 		efi_status = uefi_call_wrapper(RT->SetVariable,
@@ -1604,18 +1607,17 @@ static INTN mok_sb_prompt (void *MokSB, UINTN MokSBSize) {
 					       0, NULL);
 		if (efi_status != EFI_SUCCESS) {
 			console_notify(L"Failed to delete Secure Boot state");
-			return -1;
+			return efi_status;
 		}
 	}
 
-	console_notify(L"The system must now be rebooted");
-	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm,
-			  EFI_SUCCESS, 0, NULL);
-	console_notify(L"Failed to reboot");
-	return -1;
+	if (MokSB)
+		FreePool(MokSB);
+
+	return EFI_SUCCESS;
 }
 
-static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
+static EFI_STATUS mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS efi_status;
 	SIMPLE_TEXT_OUTPUT_MODE SavedMode;
@@ -1630,7 +1632,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 
 	if (MokDBSize != sizeof(MokDBvar)) {
 		console_notify(L"Invalid MokDB variable contents");
-		return -1;
+		return EFI_INVALID_PARAMETER;
 	}
 
 	uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -1659,7 +1661,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 		str = PoolPrint(L"Enter password character %d: ", pos1 + 1);
 		if (!str) {
 			console_errorbox(L"Failed to allocate buffer");
-			return -1;
+			return EFI_OUT_OF_RESOURCES;
 		}
 		pass1 = get_password_charater(str);
 		FreePool(str);
@@ -1667,7 +1669,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 		str = PoolPrint(L"Enter password character %d: ", pos2 + 1);
 		if (!str) {
 			console_errorbox(L"Failed to allocate buffer");
-			return -1;
+			return EFI_OUT_OF_RESOURCES;
 		}
 		pass2 = get_password_charater(str);
 		FreePool(str);
@@ -1675,7 +1677,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 		str = PoolPrint(L"Enter password character %d: ", pos3 + 1);
 		if (!str) {
 			console_errorbox(L"Failed to allocate buffer");
-			return -1;
+			return EFI_OUT_OF_RESOURCES;
 		}
 		pass3 = get_password_charater(str);
 		FreePool(str);
@@ -1692,7 +1694,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 
 	if (fail_count >= 3) {
 		console_notify(L"Password limit reached");
-		return -1;
+		return EFI_ACCESS_DENIED;
 	}
 
 	if (var->MokDBState == 0)
@@ -1702,7 +1704,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 
 	if (ret == 0) {
 		LibDeleteVariable(L"MokDB", &shim_lock_guid);
-		return -1;
+		return EFI_ABORTED;
 	}
 
 	if (var->MokDBState == 0) {
@@ -1714,7 +1716,7 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 					       1, &dbval);
 		if (efi_status != EFI_SUCCESS) {
 			console_notify(L"Failed to set DB state");
-			return -1;
+			return efi_status;
 		}
 	} else {
 		efi_status = uefi_call_wrapper(RT->SetVariable, 5,
@@ -1725,18 +1727,17 @@ static INTN mok_db_prompt (void *MokDB, UINTN MokDBSize) {
 					       0, NULL);
 		if (efi_status != EFI_SUCCESS) {
 			console_notify(L"Failed to delete DB state");
-			return -1;
+			return efi_status;
 		}
 	}
 
-	console_notify(L"The system must now be rebooted");
-	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm,
-			  EFI_SUCCESS, 0, NULL);
-	console_notify(L"Failed to reboot");
-	return -1;
+	if (MokDB)
+		FreePool(MokDB);
+
+	return EFI_SUCCESS;
 }
 
-static INTN mok_pw_prompt (void *MokPW, UINTN MokPWSize) {
+static EFI_STATUS mok_pw_prompt (void *MokPW, UINTN MokPWSize) {
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	EFI_STATUS efi_status;
 	UINT8 hash[PASSWORD_CRYPT_SIZE];
@@ -1744,7 +1745,7 @@ static INTN mok_pw_prompt (void *MokPW, UINTN MokPWSize) {
 
 	if (MokPWSize != SHA256_DIGEST_SIZE && MokPWSize != PASSWORD_CRYPT_SIZE) {
 		console_notify(L"Invalid MokPW variable contents");
-		return -1;
+		return EFI_INVALID_PARAMETER;
 	}
 
 	uefi_call_wrapper(ST->ConOut->ClearScreen, 1, ST->ConOut);
@@ -1761,19 +1762,14 @@ static INTN mok_pw_prompt (void *MokPW, UINTN MokPWSize) {
 
 	if (clear) {
 		if (console_yes_no((CHAR16 *[]){L"Clear MOK password?", NULL}) == 0)
-			return 0;
+			return EFI_ABORTED;
 
 		uefi_call_wrapper(RT->SetVariable, 5, L"MokPWStore",
 				  &shim_lock_guid,
 				  EFI_VARIABLE_NON_VOLATILE
 				  | EFI_VARIABLE_BOOTSERVICE_ACCESS,
 				  0, NULL);
-		LibDeleteVariable(L"MokPW", &shim_lock_guid);
-		console_notify(L"The system must now be rebooted");
-		uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm, EFI_SUCCESS, 0,
-				  NULL);
-		console_notify(L"Failed to reboot");
-		return -1;
+		goto mokpw_done;
 	}
 
 	if (MokPWSize == PASSWORD_CRYPT_SIZE) {
@@ -1786,11 +1782,11 @@ static INTN mok_pw_prompt (void *MokPW, UINTN MokPWSize) {
 
 	if (efi_status != EFI_SUCCESS) {
 		console_notify(L"Password limit reached");
-		return -1;
+		return efi_status;
 	}
 
 	if (console_yes_no((CHAR16 *[]){L"Set MOK password?", NULL}) == 0)
-		return 0;
+		return EFI_ABORTED;
 
 	efi_status = uefi_call_wrapper(RT->SetVariable, 5,
 				       L"MokPWStore",
@@ -1800,16 +1796,16 @@ static INTN mok_pw_prompt (void *MokPW, UINTN MokPWSize) {
 				       MokPWSize, MokPW);
 	if (efi_status != EFI_SUCCESS) {
 		console_notify(L"Failed to set MOK password");
-		return -1;
+		return efi_status;
 	}
 
+mokpw_done:
 	LibDeleteVariable(L"MokPW", &shim_lock_guid);
 
-	console_notify(L"The system must now be rebooted");
-	uefi_call_wrapper(RT->ResetSystem, 4, EfiResetWarm, EFI_SUCCESS, 0,
-			  NULL);
-	console_notify(L"Failed to reboot");
-	return -1;
+	if (MokPW)
+		FreePool(MokPW);
+
+	return EFI_SUCCESS;
 }
 
 static BOOLEAN verify_certificate(UINT8 *cert, UINTN size)
@@ -1921,7 +1917,7 @@ static EFI_STATUS enroll_file (void *data, UINTN datasize, BOOLEAN hash)
 			goto out;
 	}
 
-	mok_enrollment_prompt(mokbuffer, mokbuffersize, FALSE, FALSE);
+	status = mok_enrollment_prompt(mokbuffer, mokbuffersize, FALSE, FALSE);
 out:
 	if (mokbuffer)
 		FreePool(mokbuffer);
@@ -1929,7 +1925,7 @@ out:
 	return status;
 }
 
-static void mok_hash_enroll(void)
+static EFI_STATUS mok_hash_enroll(void)
 {
 	EFI_STATUS efi_status;
         CHAR16 *file_name = NULL;
@@ -1948,13 +1944,13 @@ static void mok_hash_enroll(void)
 	      }, L"\\", L"", &file_name);
 
 	if (!file_name)
-		return;
+		return EFI_INVALID_PARAMETER;
 
 	efi_status = simple_file_open(im, file_name, &file, EFI_FILE_MODE_READ);
 
 	if (efi_status != EFI_SUCCESS) {
 		console_error(L"Unable to open file", efi_status);
-		return;
+		return efi_status;
 	}
 
 	simple_file_read_all(file, &filesize, &data);
@@ -1962,7 +1958,7 @@ static void mok_hash_enroll(void)
 
 	if (!filesize) {
 		console_error(L"Unable to read file", efi_status);
-		return;
+		return EFI_BAD_BUFFER_SIZE;
 	}
 
 	efi_status = enroll_file(data, filesize, TRUE);
@@ -1971,6 +1967,8 @@ static void mok_hash_enroll(void)
 		console_error(L"Hash failed (did you select a valid EFI binary?)", efi_status);
 
 	FreePool(data);
+
+	return efi_status;
 }
 
 static CHAR16 *der_suffix[] = {
@@ -2001,7 +1999,7 @@ static BOOLEAN check_der_suffix (CHAR16 *file_name)
 	return FALSE;
 }
 
-static void mok_key_enroll(void)
+static EFI_STATUS mok_key_enroll(void)
 {
 	EFI_STATUS efi_status;
         CHAR16 *file_name = NULL;
@@ -2020,7 +2018,7 @@ static void mok_key_enroll(void)
 	      }, L"\\", L"", &file_name);
 
 	if (!file_name)
-		return;
+		return EFI_INVALID_PARAMETER;
 
 	if (!check_der_suffix(file_name)) {
 		console_alertbox((CHAR16 *[]){
@@ -2028,14 +2026,14 @@ static void mok_key_enroll(void)
 			L"",
 			L"Only DER encoded certificate (*.cer/der/crt) is supported",
 			NULL});
-		return;
+		return EFI_UNSUPPORTED;
 	}
 
 	efi_status = simple_file_open(im, file_name, &file, EFI_FILE_MODE_READ);
 
 	if (efi_status != EFI_SUCCESS) {
 		console_error(L"Unable to open file", efi_status);
-		return;
+		return efi_status;
 	}
 
 	simple_file_read_all(file, &filesize, &data);
@@ -2043,11 +2041,13 @@ static void mok_key_enroll(void)
 
 	if (!filesize) {
 		console_error(L"Unable to read file", efi_status);
-		return;
+		return EFI_BAD_BUFFER_SIZE;
 	}
 
-	enroll_file(data, filesize, FALSE);
+	efi_status = enroll_file(data, filesize, FALSE);
 	FreePool(data);
+
+	return efi_status;
 }
 
 static BOOLEAN verify_pw(BOOLEAN *protected)
@@ -2154,7 +2154,7 @@ static int draw_countdown()
 }
 
 typedef enum {
-	MOK_CONTINUE_BOOT,
+	MOK_BOOT,
 	MOK_RESET_MOK,
 	MOK_RESET_MOKX,
 	MOK_ENROLL_MOK,
@@ -2168,6 +2168,15 @@ typedef enum {
 	MOK_HASH_ENROLL
 } mok_menu_item;
 
+static void free_menu(mok_menu_item *menu_item, CHAR16 **menu_strings)
+{
+	if (menu_strings)
+		FreePool(menu_strings);
+
+	if (menu_item)
+		FreePool(menu_item);
+}
+
 static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 				 void *MokNew, UINTN MokNewSize,
 				 void *MokDel, UINTN MokDelSize,
@@ -2175,7 +2184,8 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 				 void *MokPW, UINTN MokPWSize,
 				 void *MokDB, UINTN MokDBSize,
 				 void *MokXNew, UINTN MokXNewSize,
-				 void *MokXDel, UINTN MokXDelSize)
+				 void *MokXDel, UINTN MokXDelSize,
+				 int mok_changed)
 {
 	CHAR16 **menu_strings;
 	mok_menu_item *menu_item;
@@ -2261,8 +2271,13 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 		return EFI_OUT_OF_RESOURCES;
 	}
 
-	menu_strings[i] = L"Continue boot";
-	menu_item[i] = MOK_CONTINUE_BOOT;
+	if (mok_changed) {
+		menu_strings[i] = L"Reboot";
+		console_notify(L"The system must be rebooted for your changes to take effect");
+	} else {
+		menu_strings[i] = L"Continue boot";
+	}
+	menu_item[i] = MOK_BOOT;
 
 	i++;
 
@@ -2339,51 +2354,64 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 			goto out;
 
 		switch (menu_item[choice]) {
-		case MOK_CONTINUE_BOOT:
+		case MOK_BOOT:
 			goto out;
 		case MOK_RESET_MOK:
-			mok_reset_prompt(FALSE);
+			efi_status = mok_reset_prompt(FALSE);
 			break;
 		case MOK_ENROLL_MOK:
-			mok_enrollment_prompt(MokNew, MokNewSize, TRUE, FALSE);
+			efi_status = mok_enrollment_prompt(MokNew, MokNewSize, TRUE, FALSE);
 			break;
 		case MOK_DELETE_MOK:
-			mok_deletion_prompt(MokDel, MokDelSize, FALSE);
+			efi_status = mok_deletion_prompt(MokDel, MokDelSize, FALSE);
 			break;
 		case MOK_RESET_MOKX:
-			mok_reset_prompt(TRUE);
+			efi_status = mok_reset_prompt(TRUE);
 			break;
 		case MOK_ENROLL_MOKX:
-			mok_enrollment_prompt(MokXNew, MokXNewSize, TRUE, TRUE);
+			efi_status = mok_enrollment_prompt(MokXNew, MokXNewSize, TRUE, TRUE);
 			break;
 		case MOK_DELETE_MOKX:
-			mok_deletion_prompt(MokXDel, MokXDelSize, TRUE);
+			efi_status = mok_deletion_prompt(MokXDel, MokXDelSize, TRUE);
 			break;
 		case MOK_CHANGE_SB:
-			mok_sb_prompt(MokSB, MokSBSize);
+			efi_status = mok_sb_prompt(MokSB, MokSBSize);
 			break;
 		case MOK_SET_PW:
-			mok_pw_prompt(MokPW, MokPWSize);
+			efi_status = mok_pw_prompt(MokPW, MokPWSize);
 			break;
 		case MOK_CHANGE_DB:
-			mok_db_prompt(MokDB, MokDBSize);
+			efi_status = mok_db_prompt(MokDB, MokDBSize);
 			break;
 		case MOK_KEY_ENROLL:
-			mok_key_enroll();
+			efi_status = mok_key_enroll();
 			break;
 		case MOK_HASH_ENROLL:
-			mok_hash_enroll();
+			efi_status = mok_hash_enroll();
 			break;
 		}
 	}
 
+	if (efi_status == EFI_SUCCESS)
+		mok_changed = 1;
+	else
+		mok_changed = 0;
+
+	free_menu(menu_item, menu_strings);
+
+	mok_changed = enter_mok_menu(image_handle, MokNew, MokNewSize, MokDel,
+				     MokDelSize, MokSB, MokSBSize, MokPW,
+				     MokPWSize, MokDB, MokDBSize, MokXNew,
+				     MokXNewSize, MokXDel, MokXDelSize,
+				     mok_changed);
+
 out:
+	if (mok_changed)
+		return reset_system();
+
 	console_reset();
 
-	FreePool(menu_strings);
-
-	if (menu_item)
-		FreePool(menu_item);
+	free_menu(menu_item, menu_strings);
 
 	return ret;
 }
@@ -2474,7 +2502,7 @@ static EFI_STATUS check_mok_request(EFI_HANDLE image_handle)
 
 	enter_mok_menu(image_handle, MokNew, MokNewSize, MokDel, MokDelSize,
 		       MokSB, MokSBSize, MokPW, MokPWSize, MokDB, MokDBSize,
-		       MokXNew, MokXNewSize, MokXDel, MokXDelSize);
+		       MokXNew, MokXNewSize, MokXDel, MokXDelSize, 0);
 
 	if (MokNew)
 		FreePool (MokNew);
