@@ -10,6 +10,10 @@ else
 	cert=debian/debian-uefi-ca.der
 endif
 
+ifeq ($(DEB_HOST_ARCH),amd64)
+export EFI_ARCH := x64
+endif
+
 %:
 	dh $@ --parallel
 
@@ -19,9 +23,9 @@ override_dh_auto_build:
 	dh_auto_build -- \
 		MAKELEVEL=0 \
 		EFI_PATH=/usr/lib \
-		DEFAULT_LOADER=\\\grubx64.efi \
+		DEFAULT_LOADER=\\\grub$(EFI_ARCH).efi \
 		VENDOR_CERT_FILE=$(cert)
 
 override_dh_fixperms:
 	dh_fixperms
-	chmod a-x debian/shim/usr/lib/shim/shimx64.efi
+	chmod a-x debian/shim/usr/lib/shim/shim$(EFI_ARCH).efi

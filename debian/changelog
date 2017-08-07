@@ -6,6 +6,8 @@ shim (12+1501864225.b586175-0) UNRELEASED; urgency=medium
     - Update dh_auto_build/dh_auto_clean for new upstream options: set
       MAKELEVEL.
     - Set DEFAULT_LOADER; this makes second-stage-path unnecessary.
+    - Define an EFI_ARCH variable, and use that for paths to shim. This
+      makes it possible to build a shim for other architectures than amd64.
   * debian/patches/second-stage-path: dropped.
   * debian/patches/sbsigntool-no-pesign: refreshed.
 
