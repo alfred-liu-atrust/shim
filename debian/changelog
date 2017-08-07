@@ -1,6 +1,7 @@
 shim (12+1501864225.b586175-0) UNRELEASED; urgency=medium
 
   * New upstream snapshot: 12+1501864225.b586175.
+  * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Fri, 04 Aug 2017 12:33:22 -0400
 
