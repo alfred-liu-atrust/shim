@@ -1,3 +1,16 @@
+shim (0.9+1474479173.6c180c6-1ubuntu1) zesty; urgency=medium
+
+  [ Steve Langasek ]
+  * Merge (not yet NEW cleared) changes from Debian branch.
+
+  [ Mathieu Trudel-Lapierre ]
+  * debian/patches/0001-shim-fix-the-mirroring-MokSBState-fail.patch: guard
+    against errors in mirroring MokSBState to MokSBStateRT. Thanks to Ivan Hu
+    for the patch. This will fix issues updating MokSBStateRT if the variable
+    already exists with different attributes. (LP: #1644806)
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Thu, 01 Dec 2016 16:55:50 -0500
+
 shim (0.9+1474479173.6c180c6-1) unstable; urgency=medium
 
   * Initial Debian upload.  Closes: #820052.
