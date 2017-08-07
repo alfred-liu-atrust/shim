@@ -10,6 +10,8 @@ shim (12+1501864225.b586175-0) UNRELEASED; urgency=medium
       makes it possible to build a shim for other architectures than amd64.
   * debian/patches/second-stage-path: dropped.
   * debian/patches/sbsigntool-no-pesign: refreshed.
+  * debian/patches/0001-shim-fix-the-mirroring-MokSBState-fail.patch: dropped,
+    included upstream.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Fri, 04 Aug 2017 12:33:22 -0400
 
