@@ -19,6 +19,7 @@ override_dh_auto_build:
 	dh_auto_build -- \
 		MAKELEVEL=0 \
 		EFI_PATH=/usr/lib \
+		DEFAULT_LOADER=\\\grubx64.efi \
 		VENDOR_CERT_FILE=$(cert)
 
 override_dh_fixperms:
