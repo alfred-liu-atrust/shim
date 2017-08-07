@@ -35,30 +35,77 @@ static BOOLEAN tpm_present(efi_tpm_protocol_t *tpm)
 	return TRUE;
 }
 
-static BOOLEAN tpm2_present(efi_tpm2_protocol_t *tpm)
+static EFI_STATUS tpm2_get_caps(efi_tpm2_protocol_t *tpm,
+				EFI_TCG2_BOOT_SERVICE_CAPABILITY *caps,
+				BOOLEAN *old_caps)
 {
 	EFI_STATUS status;
-	EFI_TCG2_BOOT_SERVICE_CAPABILITY caps;
-	EFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0 *caps_1_0;
 
-	caps.Size = (UINT8)sizeof(caps);
+	caps->Size = (UINT8)sizeof(*caps);
 
-	status = uefi_call_wrapper(tpm->get_capability, 2, tpm, &caps);
+	status = uefi_call_wrapper(tpm->get_capability, 2, tpm, caps);
 
 	if (status != EFI_SUCCESS)
-		return FALSE;
+		return status;
 
-	if (caps.StructureVersion.Major == 1 &&
-	    caps.StructureVersion.Minor == 0) {
-		caps_1_0 = (EFI_TCG2_BOOT_SERVICE_CAPABILITY_1_0 *)&caps;
-		if (caps_1_0->TPMPresentFlag)
-			return TRUE;
-	} else {
-		if (caps.TPMPresentFlag)
+	if (caps->StructureVersion.Major == 1 &&
+	    caps->StructureVersion.Minor == 0)
+		*old_caps = TRUE;
+
+	return EFI_SUCCESS;
+}
+
+static BOOLEAN tpm2_present(EFI_TCG2_BOOT_SERVICE_CAPABILITY *caps,
+			    BOOLEAN old_caps)
+{
+	TREE_BOOT_SERVICE_CAPABILITY *caps_1_0;
+
+	if (old_caps) {
+		caps_1_0 = (TREE_BOOT_SERVICE_CAPABILITY *)caps;
+		if (caps_1_0->TrEEPresentFlag)
 			return TRUE;
 	}
 
+	if (caps->TPMPresentFlag)
+		return TRUE;
+
 	return FALSE;
+}
+
+static inline EFI_TCG2_EVENT_LOG_BITMAP
+tpm2_get_supported_logs(efi_tpm2_protocol_t *tpm,
+			EFI_TCG2_BOOT_SERVICE_CAPABILITY *caps,
+			BOOLEAN old_caps)
+{
+	if (old_caps)
+		return ((TREE_BOOT_SERVICE_CAPABILITY *)caps)->SupportedEventLogs;
+
+	return caps->SupportedEventLogs;
+}
+
+/*
+ * According to TCG EFI Protocol Specification for TPM 2.0 family,
+ * all events generated after the invocation of EFI_TCG2_GET_EVENT_LOG
+ * shall be stored in an instance of an EFI_CONFIGURATION_TABLE aka
+ * EFI TCG 2.0 final events table. Hence, it is necessary to trigger the
+ * internal switch through calling get_event_log() in order to allow
+ * to retrieve the logs from OS runtime.
+ */
+static EFI_STATUS trigger_tcg2_final_events_table(efi_tpm2_protocol_t *tpm2,
+						  EFI_TCG2_EVENT_LOG_BITMAP supported_logs)
+{
+	EFI_TCG2_EVENT_LOG_FORMAT log_fmt;
+	EFI_PHYSICAL_ADDRESS start;
+	EFI_PHYSICAL_ADDRESS end;
+	BOOLEAN truncated;
+
+	if (supported_logs & EFI_TCG2_EVENT_LOG_FORMAT_TCG_2)
+		log_fmt = EFI_TCG2_EVENT_LOG_FORMAT_TCG_2;
+	else
+		log_fmt = EFI_TCG2_EVENT_LOG_FORMAT_TCG_1_2;
+
+	return uefi_call_wrapper(tpm2->get_event_log, 5, tpm2, log_fmt,
+				 &start, &end, &truncated);
 }
 
 EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
@@ -71,10 +118,25 @@ EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 	status = LibLocateProtocol(&tpm2_guid, (VOID **)&tpm2);
 	/* TPM 2.0 */
 	if (status == EFI_SUCCESS) {
+		BOOLEAN old_caps;
 		EFI_TCG2_EVENT *event;
+		EFI_TCG2_BOOT_SERVICE_CAPABILITY caps;
+		EFI_TCG2_EVENT_LOG_BITMAP supported_logs;
 
-		if (!tpm2_present(tpm2))
+		status = tpm2_get_caps(tpm2, &caps, &old_caps);
+		if (status != EFI_SUCCESS)
 			return EFI_SUCCESS;
+
+		if (!tpm2_present(&caps, old_caps))
+			return EFI_SUCCESS;
+
+		supported_logs = tpm2_get_supported_logs(tpm2, &caps, old_caps);
+
+		status = trigger_tcg2_final_events_table(tpm2, supported_logs);
+		if (EFI_ERROR(status)) {
+			perror(L"Unable to trigger tcg2 final events table: %r\n", status);
+			return status;
+		}
 
 		event = AllocatePool(sizeof(*event) + strlen(description) + 1);
 		if (!event) {
@@ -85,7 +147,7 @@ EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 		event->Header.HeaderSize = sizeof(EFI_TCG2_EVENT_HEADER);
 		event->Header.HeaderVersion = 1;
 		event->Header.PCRIndex = pcr;
-		event->Header.EventType = 0x0d;
+		event->Header.EventType = EV_IPL;
 		event->Size = sizeof(*event) - sizeof(event->Event) + strlen(description) + 1;
 		memcpy(event->Event, description, strlen(description) + 1);
 		status = uefi_call_wrapper(tpm2->hash_log_extend_event, 5, tpm2,
@@ -94,7 +156,7 @@ EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 		return status;
 	} else {
 		TCG_PCR_EVENT *event;
-		UINT32 algorithm, eventnum = 0;
+		UINT32 eventnum = 0;
 		EFI_PHYSICAL_ADDRESS lastevent;
 
 		status = LibLocateProtocol(&tpm_guid, (VOID **)&tpm);
@@ -113,11 +175,10 @@ EFI_STATUS tpm_log_event(EFI_PHYSICAL_ADDRESS buf, UINTN size, UINT8 pcr,
 		}
 
 		event->PCRIndex = pcr;
-		event->EventType = 0x0d;
+		event->EventType = EV_IPL;
 		event->EventSize = strlen(description) + 1;
-		algorithm = 0x00000004;
 		status = uefi_call_wrapper(tpm->log_extend_event, 7, tpm, buf,
-					   (UINT64)size, algorithm, event,
+					   (UINT64)size, TPM_ALG_SHA, event,
 					   &eventnum, &lastevent);
 		FreePool(event);
 		return status;

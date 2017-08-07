@@ -1,26 +1,40 @@
-VERSION		= 0.9
+VERSION		= 12
 RELEASE		:=
 ifneq ($(RELEASE),"")
 	RELEASE:="-$(RELEASE)"
 endif
 
+ifeq ($(MAKELEVEL),0)
+TOPDIR		?= $(shell pwd)
+endif
+override TOPDIR	:= $(abspath $(TOPDIR))
+VPATH		= $(TOPDIR)
+
+
 CC		= $(CROSS_COMPILE)gcc
 LD		= $(CROSS_COMPILE)ld
 OBJCOPY		= $(CROSS_COMPILE)objcopy
+OPENSSL		?= openssl
+HEXDUMP		?= hexdump
+PK12UTIL	?= pk12util
+CERTUTIL	?= certutil
+PESIGN		?= pesign
 
-ARCH		= $(shell $(CC) -dumpmachine | cut -f1 -d- | sed s,i[3456789]86,ia32,)
+ARCH		?= $(shell $(CC) -dumpmachine | cut -f1 -d- | sed s,i[3456789]86,ia32,)
 OBJCOPY_GTE224  = $(shell expr `$(OBJCOPY) --version |grep ^"GNU objcopy" | sed 's/^.*\((.*)\|version\) //g' | cut -f1-2 -d.` \>= 2.24)
 
-SUBDIRS		= Cryptlib lib
+SUBDIRS		= $(TOPDIR)/Cryptlib $(TOPDIR)/lib
 
 EFI_INCLUDE	:= /usr/include/efi
-EFI_INCLUDES	= -nostdinc -ICryptlib -ICryptlib/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol -I$(shell pwd)/include
+EFI_INCLUDES	= -nostdinc -I$(TOPDIR)/Cryptlib -I$(TOPDIR)/Cryptlib/Include \
+		  -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol \
+		  -I$(TOPDIR)/include -iquote $(TOPDIR) -iquote $(shell pwd)
 
 LIB_GCC		= $(shell $(CC) -print-libgcc-file-name)
 EFI_LIBS	= -lefi -lgnuefi --start-group Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a --end-group $(LIB_GCC) 
 
 EFI_CRT_OBJS 	= $(EFI_PATH)/crt0-efi-$(ARCH).o
-EFI_LDS		= elf_$(ARCH)_efi.lds
+EFI_LDS		= $(TOPDIR)/elf_$(ARCH)_efi.lds
 
 DEFAULT_LOADER	:= \\\\grub.efi
 CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
@@ -33,6 +47,8 @@ CFLAGS		= -ggdb -O0 -fno-stack-protector -fno-strict-aliasing -fpic \
 SHIMNAME	= shim
 MMNAME		= MokManager
 FBNAME		= fallback
+
+COMMITID ?= $(shell if [ -d .git ] ; then git log -1 --pretty=format:%H ; elif [ -f commit ]; then cat commit ; else echo commit id not available; fi)
 
 ifneq ($(origin OVERRIDE_SECURITY_POLICY), undefined)
 	CFLAGS	+= -DOVERRIDE_SECURITY_POLICY
@@ -89,45 +105,49 @@ LDFLAGS		= --hash-style=sysv -nostdlib -znocombreloc -T $(EFI_LDS) -shared -Bsym
 TARGET	= $(SHIMNAME).efi $(MMNAME).efi.signed $(FBNAME).efi.signed
 OBJS	= shim.o netboot.o cert.o replacements.o tpm.o version.o
 KEYS	= shim_cert.h ocsp.* ca.* shim.crt shim.csr shim.p12 shim.pem shim.key shim.cer
-SOURCES	= shim.c shim.h netboot.c include/PeImage.h include/wincert.h include/console.h replacements.c replacements.h tpm.c tpm.h version.c version.h
+ORIG_SOURCES	= shim.c shim.h netboot.c include/PeImage.h include/wincert.h include/console.h replacements.c replacements.h tpm.c tpm.h version.h
 MOK_OBJS = MokManager.o PasswordCrypt.o crypt_blowfish.o
-MOK_SOURCES = MokManager.c shim.h include/console.h PasswordCrypt.c PasswordCrypt.h crypt_blowfish.c crypt_blowfish.h
+ORIG_MOK_SOURCES = MokManager.c shim.h include/console.h PasswordCrypt.c PasswordCrypt.h crypt_blowfish.c crypt_blowfish.h
 FALLBACK_OBJS = fallback.o
-FALLBACK_SRCS = fallback.c
+ORIG_FALLBACK_SRCS = fallback.c
 
 ifneq ($(origin ENABLE_HTTPBOOT), undefined)
 	OBJS += httpboot.o
 	SOURCES += httpboot.c httpboot.h
 endif
 
+SOURCES = $(foreach source,$(ORIG_SOURCES),$(TOPDIR)/$(source)) version.c
+MOK_SOURCES = $(foreach source,$(ORIG_MOK_SOURCES),$(TOPDIR)/$(source))
+FALLBACK_SRCS = $(foreach source,$(ORIG_FALLBACK_SRCS),$(TOPDIR)/$(source))
+
 all: $(TARGET)
 
 shim.crt:
-	./make-certs shim shim@xn--u4h.net all codesign 1.3.6.1.4.1.311.10.3.1 </dev/null
+	$(TOPDIR)/make-certs shim shim@xn--u4h.net all codesign 1.3.6.1.4.1.311.10.3.1 </dev/null
 
 shim.cer: shim.crt
-	openssl x509 -outform der -in $< -out $@
+	$(OPENSSL) x509 -outform der -in $< -out $@
 
 shim_cert.h: shim.cer
 	echo "static UINT8 shim_cert[] = {" > $@
-	hexdump -v -e '1/1 "0x%02x, "' $< >> $@
+	$(HEXDUMP) -v -e '1/1 "0x%02x, "' $< >> $@
 	echo "};" >> $@
 
-version.c : version.c.in
+version.c : $(TOPDIR)/version.c.in
 	sed	-e "s,@@VERSION@@,$(VERSION)," \
 		-e "s,@@UNAME@@,$(shell uname -a)," \
-		-e "s,@@COMMIT@@,$(shell if [ -d .git ] ; then git log -1 --pretty=format:%H ; elif [ -f commit ]; then cat commit ; else echo commit id not available; fi)," \
-		< version.c.in > version.c
+		-e "s,@@COMMIT@@,$(COMMITID)," \
+		< $< > $@
 
 certdb/secmod.db: shim.crt
 	-mkdir certdb
-	pk12util -d certdb/ -i shim.p12 -W "" -K ""
-	certutil -d certdb/ -A -i shim.crt -n shim -t u
+	$(PK12UTIL) -d certdb/ -i shim.p12 -W "" -K ""
+	$(CERTUTIL) -d certdb/ -A -i shim.crt -n shim -t u
 
 shim.o: $(SOURCES) shim_cert.h
-shim.o: $(wildcard *.h)
+shim.o: $(wildcard $(TOPDIR)/*.h *.h)
 
-cert.o : cert.S
+cert.o : $(TOPDIR)/cert.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 $(SHIMNAME).so: $(OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a lib/lib.a
@@ -144,13 +164,16 @@ $(MMNAME).so: $(MOK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a l
 	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS) lib/lib.a
 
 Cryptlib/libcryptlib.a:
-	$(MAKE) -C Cryptlib
+	mkdir -p Cryptlib/{Hash,Hmac,Cipher,Rand,Pk,Pem,SysCall}
+	$(MAKE) VPATH=$(TOPDIR)/Cryptlib TOPDIR=$(TOPDIR)/Cryptlib -C Cryptlib -f $(TOPDIR)/Cryptlib/Makefile
 
 Cryptlib/OpenSSL/libopenssl.a:
-	$(MAKE) -C Cryptlib/OpenSSL
+	mkdir -p Cryptlib/OpenSSL/crypto/{x509v3,x509,txt_db,stack,sha,rsa,rc4,rand,pkcs7,pkcs12,pem,ocsp,objects,modes,md5,lhash,kdf,hmac,evp,err,dso,dh,conf,comp,cmac,buffer,bn,bio,async{,/arch},asn1,aes}/
+	$(MAKE) VPATH=$(TOPDIR)/Cryptlib/OpenSSL TOPDIR=$(TOPDIR)/Cryptlib/OpenSSL -C Cryptlib/OpenSSL -f $(TOPDIR)/Cryptlib/OpenSSL/Makefile
 
 lib/lib.a:
-	$(MAKE) CFLAGS="$(CFLAGS)" -C lib
+	if [ ! -d lib ]; then mkdir lib ; fi
+	$(MAKE) VPATH=$(TOPDIR)/lib TOPDIR=$(TOPDIR) CFLAGS="$(CFLAGS)" -C lib -f $(TOPDIR)/lib/Makefile
 
 ifeq ($(ARCH),aarch64)
 FORMAT		:= -O binary
@@ -170,7 +193,7 @@ FORMAT		?= --target efi-app-$(ARCH)
 ifneq ($(OBJCOPY_GTE224),1)
 	$(error objcopy >= 2.24 is required)
 endif
-	$(OBJCOPY) -j .text -j .sdata -j .data \
+	$(OBJCOPY) -j .text -j .sdata -j .data -j .data.ident \
 		-j .dynamic -j .dynsym  -j .rel* \
 		-j .rela* -j .reloc -j .eh_frame \
 		-j .vendor_cert \
@@ -184,12 +207,12 @@ endif
 		$(FORMAT) $^ $@.debug
 
 %.efi.signed: %.efi certdb/secmod.db
-	pesign -n certdb -i $< -c "shim" -s -o $@ -f
+	$(PESIGN) -n certdb -i $< -c "shim" -s -o $@ -f
 
 clean:
-	$(MAKE) -C Cryptlib clean
-	$(MAKE) -C Cryptlib/OpenSSL clean
-	$(MAKE) -C lib clean
+	$(MAKE) -C Cryptlib -f $(TOPDIR)/Cryptlib/Makefile clean
+	$(MAKE) -C Cryptlib/OpenSSL -f $(TOPDIR)/Cryptlib/OpenSSL/Makefile clean
+	$(MAKE) -C lib -f $(TOPDIR)/lib/Makefile clean
 	rm -rf $(TARGET) $(OBJS) $(MOK_OBJS) $(FALLBACK_OBJS) $(KEYS) certdb
 	rm -f *.debug *.so *.efi *.tar.* version.c
 
@@ -208,6 +231,7 @@ test-archive:
 
 tag:
 	git tag --sign $(GITTAG) refs/heads/master
+	git tag -f latest-release $(GITTAG)
 
 archive: tag
 	@rm -rf /tmp/shim-$(VERSION) /tmp/shim-$(VERSION)-tmp

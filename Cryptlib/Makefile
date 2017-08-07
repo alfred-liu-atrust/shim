@@ -1,7 +1,7 @@
 
-EFI_INCLUDES	= -IInclude -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol
+EFI_INCLUDES	= -I$(TOPDIR)/Include -I$(EFI_INCLUDE) -I$(EFI_INCLUDE)/$(ARCH) -I$(EFI_INCLUDE)/protocol
 
-CFLAGS		= -ggdb -O0 -I. -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
+CFLAGS		= -ggdb -O0 -I$(TOPDIR) -iquote $(TOPDIR) -fno-stack-protector -fno-strict-aliasing -fpic -fshort-wchar \
 		  -Wall $(EFI_INCLUDES) -std=gnu89 \
 		  -ffreestanding -I$(shell $(CC) -print-file-name=include)
 
@@ -20,16 +20,17 @@ endif
 LDFLAGS		= -nostdlib -znocombreloc
 
 TARGET		= libcryptlib.a
-OBJS		=   Hash/CryptMd4.o \
+OBJS		=   Hash/CryptMd4Null.o \
 		    Hash/CryptMd5.o \
 		    Hash/CryptSha1.o \
 		    Hash/CryptSha256.o \
 		    Hash/CryptSha512.o \
-		    Hmac/CryptHmacMd5.o \
-		    Hmac/CryptHmacSha1.o \
-		    Cipher/CryptAes.o \
-		    Cipher/CryptTdes.o \
-		    Cipher/CryptArc4.o \
+		    Hmac/CryptHmacMd5Null.o \
+		    Hmac/CryptHmacSha1Null.o \
+		    Hmac/CryptHmacSha256Null.o \
+		    Cipher/CryptAesNull.o \
+		    Cipher/CryptTdesNull.o \
+		    Cipher/CryptArc4Null.o \
 		    Rand/CryptRand.o \
 		    Pk/CryptRsaBasic.o \
 		    Pk/CryptRsaExtNull.o \
@@ -39,11 +40,12 @@ OBJS		=   Hash/CryptMd4.o \
 		    Pk/CryptTs.o \
 		    Pk/CryptX509.o \
 		    Pk/CryptAuthenticode.o \
-		    Pem/CryptPem.o \
+		    Pem/CryptPemNull.o \
 		    SysCall/CrtWrapper.o \
 		    SysCall/TimerWrapper.o \
 		    SysCall/BaseMemAllocation.o \
-		    SysCall/BaseStrings.o
+		    SysCall/BaseStrings.o \
+		    SysCall/memset.o
 
 all: $(TARGET)
 
