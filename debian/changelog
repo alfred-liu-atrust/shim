@@ -1,6 +1,6 @@
-shim (12+1501864225.b586175-0) UNRELEASED; urgency=medium
+shim (12+1502324945.478f9bb-0) UNRELEASED; urgency=medium
 
-  * New upstream snapshot: 12+1501864225.b586175.
+  * New upstream snapshot: 12+1502324945.478f9bb.
   * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
   * debian/rules:
     - Update dh_auto_build/dh_auto_clean for new upstream options: set
@@ -13,7 +13,7 @@ shim (12+1501864225.b586175-0) UNRELEASED; urgency=medium
   * debian/patches/0001-shim-fix-the-mirroring-MokSBState-fail.patch: dropped,
     included upstream.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Fri, 04 Aug 2017 12:33:22 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 09 Aug 2017 20:39:15 -0400
 
 shim (0.9+1474479173.6c180c6-1ubuntu1) zesty; urgency=medium
 
