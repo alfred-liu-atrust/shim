@@ -9,9 +9,11 @@ shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
       makes it possible to build a shim for other architectures than amd64.
     - Set ENABLE_SHIM_CERT, to keep using ephemeral self-signed certs built
       at compile-time for MokManager and fallback.
+    - Set ENABLE_SBSIGN, to use sbsign instead of pesign for signing fallback
+      and MokManager.
   * debian/patches/second-stage-path: dropped; the default loader path now
     includes an arch suffix.
-  * debian/patches/sbsigntool-no-pesign: refreshed.
+  * debian/patches/sbsigntool-no-pesign: dropped; no longer needed..
   * debian/patches/0001-shim-fix-the-mirroring-MokSBState-fail.patch: dropped,
     included upstream.
 
