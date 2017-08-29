@@ -7,6 +7,8 @@ shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
       MAKELEVEL.
     - Define an EFI_ARCH variable, and use that for paths to shim. This
       makes it possible to build a shim for other architectures than amd64.
+    - Set ENABLE_SHIM_CERT, to keep using ephemeral self-signed certs built
+      at compile-time for MokManager and fallback.
   * debian/patches/second-stage-path: dropped; the default loader path now
     includes an arch suffix.
   * debian/patches/sbsigntool-no-pesign: refreshed.

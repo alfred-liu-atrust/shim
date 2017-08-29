@@ -23,6 +23,7 @@ override_dh_auto_build:
 	dh_auto_build -- \
 		MAKELEVEL=0 \
 		EFI_PATH=/usr/lib \
+		ENABLE_SHIM_CERT=1 \
 		VENDOR_CERT_FILE=$(cert)
 
 override_dh_fixperms:
