@@ -1,0 +1,22 @@
+From: Mathieu Trudel-Lapierre <mathieu.trudel-lapierre@canonical.com>
+Subject: Fix Makefile to successfully build for shim with cert and sbsign
+
+sbsign needs shim.key and shim.crt, but the only target that exists in
+makefile is shim.crt. shim.key is a side-effect building shim.crt.
+
+---
+ Makefile |    2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+Index: b/Makefile
+===================================================================
+--- a/Makefile
++++ b/Makefile
+@@ -362,6 +362,6 @@ archive: tag
+ 	@rm -rf /tmp/shim-$(VERSION)
+ 	@echo "The archive is in shim-$(VERSION).tar.bz2"
+ 
+-.PHONY : install-deps
++.PHONY : install-deps shim.key
+ 
+ export ARCH CC LD OBJCOPY EFI_INCLUDE
