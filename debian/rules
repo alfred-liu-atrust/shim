@@ -29,6 +29,9 @@ override_dh_auto_build:
 		ENABLE_SBSIGN=1 \
 		VENDOR_CERT_FILE=$(cert)
 
+override_dh_auto_install:
+	dh_auto_install -- MAKELEVEL=0
+
 override_dh_fixperms:
 	dh_fixperms
 	chmod a-x debian/shim/usr/lib/shim/shim$(EFI_ARCH).efi

@@ -3,8 +3,8 @@ shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
   * New upstream snapshot: 12+1503074702.5202f80.
   * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
   * debian/rules:
-    - Update dh_auto_build/dh_auto_clean for new upstream options: set
-      MAKELEVEL.
+    - Update dh_auto_build/dh_auto_clean/dh_auto_install for new upstream
+      options: set MAKELEVEL.
     - Define an EFI_ARCH variable, and use that for paths to shim. This
       makes it possible to build a shim for other architectures than amd64.
     - Set ENABLE_SHIM_CERT, to keep using ephemeral self-signed certs built
