@@ -21,6 +21,8 @@ shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
   * debian/patches/fix_makefile_phony.patch: fix a makefile bug causing shim
     to fail to build, because it gets confused about the .signed efi files.
   * debian/rules: clean up after *.signed files.
+  * debian/shim.install: update paths in light of using shim's upstream install
+    target.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 29 Aug 2017 13:55:45 -0400
 
