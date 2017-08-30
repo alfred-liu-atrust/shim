@@ -7,6 +7,8 @@ shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
       options: set MAKELEVEL.
     - Define an EFI_ARCH variable, and use that for paths to shim. This
       makes it possible to build a shim for other architectures than amd64.
+    - Set EFIDIR=ubuntu for dh_auto_install; that will let files be installed
+      in the "right" final directories, and makes boot.csv for us.
     - Set ENABLE_SHIM_CERT, to keep using ephemeral self-signed certs built
       at compile-time for MokManager and fallback.
     - Set ENABLE_SBSIGN, to use sbsign instead of pesign for signing fallback

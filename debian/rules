@@ -30,7 +30,7 @@ override_dh_auto_build:
 		VENDOR_CERT_FILE=$(cert)
 
 override_dh_auto_install:
-	dh_auto_install -- MAKELEVEL=0
+	dh_auto_install -- MAKELEVEL=0 EFIDIR=ubuntu
 
 override_dh_fixperms:
 	dh_fixperms
