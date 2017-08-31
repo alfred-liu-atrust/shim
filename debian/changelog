@@ -1,7 +1,8 @@
-shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
+shim (12+1503074702.5202f80-0ubuntu1~test3) artful; urgency=medium
 
   * New upstream snapshot: 12+1503074702.5202f80.
   * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
+  * debian/control: add a Build-Depends on libelf-dev.
   * debian/rules:
     - Update dh_auto_build/dh_auto_clean/dh_auto_install for new upstream
       options: set MAKELEVEL.
@@ -24,7 +25,7 @@ shim (12+1503074702.5202f80-0ubuntu1) UNRELEASED; urgency=medium
   * debian/shim.install: update paths in light of using shim's upstream install
     target.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 29 Aug 2017 13:55:45 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 29 Aug 2017 22:45:30 -0400
 
 shim (0.9+1474479173.6c180c6-1ubuntu1) zesty; urgency=medium
 
