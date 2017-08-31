@@ -1,4 +1,4 @@
-shim (12+1503074702.5202f80-0ubuntu1~test3) artful; urgency=medium
+shim (12+1503074702.5202f80-0ubuntu1~test4) UNRELEASED; urgency=medium
 
   * New upstream snapshot: 12+1503074702.5202f80.
   * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
