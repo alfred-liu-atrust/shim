@@ -6,13 +6,24 @@
 # should be building the other binaries also.
 ifeq ($(shell dpkg-vendor --is ubuntu && echo yes),yes)
 	cert=debian/canonical-uefi-ca.der
+	distributor=ubuntu
 else
 	cert=debian/debian-uefi-ca.der
+	distributor=debian
 endif
 
 ifeq ($(DEB_HOST_ARCH),amd64)
 export EFI_ARCH := x64
 endif
+
+COMMON_OPTIONS = \
+	MAKELEVEL=0 \
+	EFI_PATH=/usr/lib \
+	ENABLE_SHIM_CERT=1 \
+	ENABLE_SBSIGN=1 \
+	VENDOR_CERT_FILE=$(cert) \
+	EFIDIR=$(distributor) \
+	$(NULL)
 
 %:
 	dh $@ --parallel
@@ -22,15 +33,10 @@ override_dh_auto_clean:
 	rm -f *.signed
 
 override_dh_auto_build:
-	dh_auto_build -- \
-		MAKELEVEL=0 \
-		EFI_PATH=/usr/lib \
-		ENABLE_SHIM_CERT=1 \
-		ENABLE_SBSIGN=1 \
-		VENDOR_CERT_FILE=$(cert)
+	dh_auto_build -- $(COMMON_OPTIONS)
 
 override_dh_auto_install:
-	dh_auto_install -- MAKELEVEL=0 EFIDIR=ubuntu
+	dh_auto_install --destdir=debian/tmp -- $(COMMON_OPTIONS)
 
 override_dh_fixperms:
 	dh_fixperms
