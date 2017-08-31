@@ -24,6 +24,8 @@ shim (12+1503074702.5202f80-0ubuntu1~test3) artful; urgency=medium
   * debian/rules: clean up after *.signed files.
   * debian/shim.install: update paths in light of using shim's upstream install
     target.
+  * debian/patches/buildid_write_return.patch: workaround our strict compile
+    rules failing the build: make sure write calls check the return value.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 29 Aug 2017 22:45:30 -0400
 

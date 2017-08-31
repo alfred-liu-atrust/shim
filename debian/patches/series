@@ -1,1 +1,2 @@
 fix_makefile_phony.patch
+buildid_write_return.patch
