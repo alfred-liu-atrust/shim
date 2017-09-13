@@ -379,14 +379,14 @@ static void show_x509_info (X509 *X509Cert, UINT8 *hash)
 			fields++;
 	}
 
-	time = X509_getm_notBefore(X509Cert);
+	time = X509_get_notBefore(X509Cert);
 	if (time) {
 		from = get_x509_time(time);
 		if (from)
 			fields++;
 	}
 
-	time = X509_getm_notAfter(X509Cert);
+	time = X509_get_notAfter(X509Cert);
 	if (time) {
 		until = get_x509_time(time);
 		if (until)
@@ -1058,14 +1058,12 @@ static EFI_STATUS mok_enrollment_prompt (void *MokNew, UINTN MokNewSize, int aut
 			LibDeleteVariable(L"MokNew", &shim_lock_guid);
 			LibDeleteVariable(L"MokAuth", &shim_lock_guid);
 		}
-
-		if (MokNew)
-			FreePool (MokNew);
-
-		return EFI_SUCCESS;
 	}
 
-	return EFI_UNSUPPORTED;
+	if (MokNew)
+		FreePool (MokNew);
+
+	return EFI_SUCCESS;
 }
 
 static EFI_STATUS mok_reset_prompt (BOOLEAN MokX)
@@ -2184,17 +2182,12 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 				 void *MokPW, UINTN MokPWSize,
 				 void *MokDB, UINTN MokDBSize,
 				 void *MokXNew, UINTN MokXNewSize,
-				 void *MokXDel, UINTN MokXDelSize,
-				 int mok_changed)
+				 void *MokXDel, UINTN MokXDelSize)
 {
 	CHAR16 **menu_strings;
 	mok_menu_item *menu_item;
 	int choice = 0;
-	UINT32 MokAuth = 0;
-	UINT32 MokDelAuth = 0;
-	UINT32 MokXAuth = 0;
-	UINT32 MokXDelAuth = 0;
-	UINTN menucount = 3, i = 0;
+	int mok_changed = 0;
 	EFI_STATUS efi_status;
 	EFI_GUID shim_lock_guid = SHIM_LOCK_GUID;
 	UINT8 auth[PASSWORD_CRYPT_SIZE];
@@ -2206,147 +2199,151 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 	if (verify_pw(&protected) == FALSE)
 		return EFI_ACCESS_DENIED;
 	
-	efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokAuth",
-					       &shim_lock_guid,
-					       &attributes, &auth_size, auth);
-
-	if ((efi_status == EFI_SUCCESS) &&
-	    (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
-		MokAuth = 1;
-
-	efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokDelAuth",
-					       &shim_lock_guid,
-					       &attributes, &auth_size, auth);
-
-	if ((efi_status == EFI_SUCCESS) &&
-	   (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
-		MokDelAuth = 1;
-
-	efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokXAuth",
-					       &shim_lock_guid,
-					       &attributes, &auth_size, auth);
-
-	if ((efi_status == EFI_SUCCESS) &&
-	    (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
-		MokXAuth = 1;
-
-	efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokXDelAuth",
-					       &shim_lock_guid,
-					       &attributes, &auth_size, auth);
-
-	if ((efi_status == EFI_SUCCESS) &&
-	   (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
-		MokXDelAuth = 1;
-
-	if (MokNew || MokAuth)
-		menucount++;
-
-	if (MokDel || MokDelAuth)
-		menucount++;
-
-	if (MokXNew || MokXAuth)
-		menucount++;
-
-	if (MokXDel || MokXDelAuth)
-		menucount++;
-
-	if (MokSB)
-		menucount++;
-
-	if (MokPW)
-		menucount++;
-
-	if (MokDB)
-		menucount++;
-
-	menu_strings = AllocateZeroPool(sizeof(CHAR16 *) * (menucount + 1));
-
-	if (!menu_strings)
-		return EFI_OUT_OF_RESOURCES;
-
-	menu_item = AllocateZeroPool(sizeof(mok_menu_item) * menucount);
-
-	if (!menu_item) {
-		FreePool(menu_strings);
-		return EFI_OUT_OF_RESOURCES;
-	}
-
-	if (mok_changed) {
-		menu_strings[i] = L"Reboot";
-		console_notify(L"The system must be rebooted for your changes to take effect");
-	} else {
-		menu_strings[i] = L"Continue boot";
-	}
-	menu_item[i] = MOK_BOOT;
-
-	i++;
-
-	if (MokNew || MokAuth) {
-		if (!MokNew) {
-			menu_strings[i] = L"Reset MOK";
-			menu_item[i] = MOK_RESET_MOK;
-		} else {
-			menu_strings[i] = L"Enroll MOK";
-			menu_item[i] = MOK_ENROLL_MOK;
-		}
-		i++;
-	}
-
-	if (MokDel || MokDelAuth) {
-		menu_strings[i] = L"Delete MOK";
-		menu_item[i] = MOK_DELETE_MOK;
-		i++;
-	}
-
-	if (MokXNew || MokXAuth) {
-		if (!MokXNew) {
-			menu_strings[i] = L"Reset MOKX";
-			menu_item[i] = MOK_RESET_MOKX;
-		} else {
-			menu_strings[i] = L"Enroll MOKX";
-			menu_item[i] = MOK_ENROLL_MOKX;
-		}
-		i++;
-	}
-
-	if (MokXDel || MokXDelAuth) {
-		menu_strings[i] = L"Delete MOKX";
-		menu_item[i] = MOK_DELETE_MOKX;
-		i++;
-	}
-
-	if (MokSB) {
-		menu_strings[i] = L"Change Secure Boot state";
-		menu_item[i] = MOK_CHANGE_SB;
-		i++;
-	}
-
-	if (MokPW) {
-		menu_strings[i] = L"Set MOK password";
-		menu_item[i] = MOK_SET_PW;
-		i++;
-	}
-
-	if (MokDB) {
-		menu_strings[i] = L"Change DB state";
-		menu_item[i] = MOK_CHANGE_DB;
-		i++;
-	}
-
-	menu_strings[i] = L"Enroll key from disk";
-	menu_item[i] = MOK_KEY_ENROLL;
-	i++;
-
-	menu_strings[i] = L"Enroll hash from disk";
-	menu_item[i] = MOK_HASH_ENROLL;
-	i++;
-
-	menu_strings[i] = NULL;
-
 	if (protected == FALSE && draw_countdown() == 0)
 		goto out;
 
 	while (choice >= 0) {
+		UINTN menucount = 3, i = 0;
+		UINT32 MokAuth = 0;
+		UINT32 MokDelAuth = 0;
+		UINT32 MokXAuth = 0;
+		UINT32 MokXDelAuth = 0;
+
+		efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokAuth",
+						       &shim_lock_guid,
+						       &attributes, &auth_size, auth);
+
+		if ((efi_status == EFI_SUCCESS) &&
+		    (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
+			MokAuth = 1;
+
+		efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokDelAuth",
+						       &shim_lock_guid,
+						       &attributes, &auth_size, auth);
+
+		if ((efi_status == EFI_SUCCESS) &&
+		   (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
+			MokDelAuth = 1;
+
+		efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokXAuth",
+						       &shim_lock_guid,
+						       &attributes, &auth_size, auth);
+
+		if ((efi_status == EFI_SUCCESS) &&
+		    (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
+			MokXAuth = 1;
+
+		efi_status = uefi_call_wrapper(RT->GetVariable, 5, L"MokXDelAuth",
+						       &shim_lock_guid,
+						       &attributes, &auth_size, auth);
+
+		if ((efi_status == EFI_SUCCESS) &&
+		   (auth_size == SHA256_DIGEST_SIZE || auth_size == PASSWORD_CRYPT_SIZE))
+			MokXDelAuth = 1;
+
+		if (MokNew || MokAuth)
+			menucount++;
+
+		if (MokDel || MokDelAuth)
+			menucount++;
+
+		if (MokXNew || MokXAuth)
+			menucount++;
+
+		if (MokXDel || MokXDelAuth)
+			menucount++;
+
+		if (MokSB)
+			menucount++;
+
+		if (MokPW)
+			menucount++;
+
+		if (MokDB)
+			menucount++;
+
+		menu_strings = AllocateZeroPool(sizeof(CHAR16 *) * (menucount + 1));
+
+		if (!menu_strings)
+			return EFI_OUT_OF_RESOURCES;
+
+		menu_item = AllocateZeroPool(sizeof(mok_menu_item) * menucount);
+
+		if (!menu_item) {
+			FreePool(menu_strings);
+			return EFI_OUT_OF_RESOURCES;
+		}
+
+		if (mok_changed)
+			menu_strings[i] = L"Reboot";
+		else
+			menu_strings[i] = L"Continue boot";
+		menu_item[i] = MOK_BOOT;
+
+		i++;
+
+		if (MokNew || MokAuth) {
+			if (!MokNew) {
+				menu_strings[i] = L"Reset MOK";
+				menu_item[i] = MOK_RESET_MOK;
+			} else {
+				menu_strings[i] = L"Enroll MOK";
+				menu_item[i] = MOK_ENROLL_MOK;
+			}
+			i++;
+		}
+
+		if (MokDel || MokDelAuth) {
+			menu_strings[i] = L"Delete MOK";
+			menu_item[i] = MOK_DELETE_MOK;
+			i++;
+		}
+
+		if (MokXNew || MokXAuth) {
+			if (!MokXNew) {
+				menu_strings[i] = L"Reset MOKX";
+				menu_item[i] = MOK_RESET_MOKX;
+			} else {
+				menu_strings[i] = L"Enroll MOKX";
+				menu_item[i] = MOK_ENROLL_MOKX;
+			}
+			i++;
+		}
+
+		if (MokXDel || MokXDelAuth) {
+			menu_strings[i] = L"Delete MOKX";
+			menu_item[i] = MOK_DELETE_MOKX;
+			i++;
+		}
+
+		if (MokSB) {
+			menu_strings[i] = L"Change Secure Boot state";
+			menu_item[i] = MOK_CHANGE_SB;
+			i++;
+		}
+
+		if (MokPW) {
+			menu_strings[i] = L"Set MOK password";
+			menu_item[i] = MOK_SET_PW;
+			i++;
+		}
+
+		if (MokDB) {
+			menu_strings[i] = L"Change DB state";
+			menu_item[i] = MOK_CHANGE_DB;
+			i++;
+		}
+
+		menu_strings[i] = L"Enroll key from disk";
+		menu_item[i] = MOK_KEY_ENROLL;
+		i++;
+
+		menu_strings[i] = L"Enroll hash from disk";
+		menu_item[i] = MOK_HASH_ENROLL;
+		i++;
+
+		menu_strings[i] = NULL;
+
 		choice = console_select((CHAR16 *[]){ L"Perform MOK management", NULL },
 					menu_strings, 0);
 
@@ -2361,27 +2358,41 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 			break;
 		case MOK_ENROLL_MOK:
 			efi_status = mok_enrollment_prompt(MokNew, MokNewSize, TRUE, FALSE);
+			if (efi_status == EFI_SUCCESS)
+				MokNew = NULL;
 			break;
 		case MOK_DELETE_MOK:
 			efi_status = mok_deletion_prompt(MokDel, MokDelSize, FALSE);
+			if (efi_status == EFI_SUCCESS)
+				MokDel = NULL;
 			break;
 		case MOK_RESET_MOKX:
 			efi_status = mok_reset_prompt(TRUE);
 			break;
 		case MOK_ENROLL_MOKX:
 			efi_status = mok_enrollment_prompt(MokXNew, MokXNewSize, TRUE, TRUE);
+			if (efi_status == EFI_SUCCESS)
+				MokXNew = NULL;
 			break;
 		case MOK_DELETE_MOKX:
 			efi_status = mok_deletion_prompt(MokXDel, MokXDelSize, TRUE);
+			if (efi_status == EFI_SUCCESS)
+				MokXDel = NULL;
 			break;
 		case MOK_CHANGE_SB:
 			efi_status = mok_sb_prompt(MokSB, MokSBSize);
+			if (efi_status == EFI_SUCCESS)
+				MokSB = NULL;
 			break;
 		case MOK_SET_PW:
 			efi_status = mok_pw_prompt(MokPW, MokPWSize);
+			if (efi_status == EFI_SUCCESS)
+				MokPW = NULL;
 			break;
 		case MOK_CHANGE_DB:
 			efi_status = mok_db_prompt(MokDB, MokDBSize);
+			if (efi_status == EFI_SUCCESS)
+				MokDB = NULL;
 			break;
 		case MOK_KEY_ENROLL:
 			efi_status = mok_key_enroll();
@@ -2390,28 +2401,20 @@ static EFI_STATUS enter_mok_menu(EFI_HANDLE image_handle,
 			efi_status = mok_hash_enroll();
 			break;
 		}
+
+		if (efi_status == EFI_SUCCESS)
+			mok_changed = 1;
+
+		free_menu(menu_item, menu_strings);
 	}
 
-	if (efi_status == EFI_SUCCESS)
-		mok_changed = 1;
-	else
-		mok_changed = 0;
-
+out:
 	free_menu(menu_item, menu_strings);
 
-	mok_changed = enter_mok_menu(image_handle, MokNew, MokNewSize, MokDel,
-				     MokDelSize, MokSB, MokSBSize, MokPW,
-				     MokPWSize, MokDB, MokDBSize, MokXNew,
-				     MokXNewSize, MokXDel, MokXDelSize,
-				     mok_changed);
-
-out:
 	if (mok_changed)
 		return reset_system();
 
 	console_reset();
-
-	free_menu(menu_item, menu_strings);
 
 	return ret;
 }
@@ -2502,7 +2505,7 @@ static EFI_STATUS check_mok_request(EFI_HANDLE image_handle)
 
 	enter_mok_menu(image_handle, MokNew, MokNewSize, MokDel, MokDelSize,
 		       MokSB, MokSBSize, MokPW, MokPWSize, MokDB, MokDBSize,
-		       MokXNew, MokXNewSize, MokXDel, MokXDelSize, 0);
+		       MokXNew, MokXNewSize, MokXDel, MokXDelSize);
 
 	if (MokNew)
 		FreePool (MokNew);

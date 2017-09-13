@@ -6,10 +6,14 @@
  */
 #include <efi.h>
 #include <efilib.h>
-
+#include <stdarg.h>
+#include <stdbool.h>
 #include <console.h>
 #include <variables.h>
 #include <errors.h>
+#include <Library/BaseCryptLib.h>
+#include <openssl/err.h>
+#include <openssl/crypto.h>
 
 static EFI_GUID SHIM_LOCK_GUID = { 0x605dab50, 0xe046, 0x4300, {0xab, 0xb6, 0x3d, 0xd8, 0x10, 0xdd, 0x8b, 0x23} };
 
@@ -308,7 +312,8 @@ console_errorbox(CHAR16 *err)
 
 	err_arr[2] = err;
 
-	console_alertbox(err_arr);
+	//console_alertbox(err_arr);
+	Print(L"%s\n", err_arr[2]);
 }
 
 void
@@ -321,7 +326,8 @@ console_notify(CHAR16 *string)
 
 	str_arr[0] = string;
 
-	console_alertbox(str_arr);
+	//console_alertbox(str_arr);
+	Print(L"%s\n", str_arr[0]);
 }
 
 #define ARRAY_SIZE(a) (sizeof (a) / sizeof ((a)[0]))
@@ -383,7 +389,6 @@ err_string (
 
 	return L"";
 }
-	
 
 void
 console_error(CHAR16 *err, EFI_STATUS status)
@@ -396,11 +401,13 @@ console_error(CHAR16 *err, EFI_STATUS status)
 	};
 	CHAR16 str[512];
 
-	SPrint(str, sizeof(str), L"%s: (%d) %s", err, status, err_string(status));
+	SPrint(str, sizeof(str), L"%s: (0x%x) %s", err, status, err_string(status));
+
 
 	err_arr[2] = str;
 
-	console_alertbox(err_arr);
+	//console_alertbox(err_arr);
+	Print(L"%s\n", err_arr[2]);
 }
 
 void
@@ -458,4 +465,30 @@ VOID setup_console (int text)
 	}
 
 	uefi_call_wrapper(concon->SetMode, 2, concon, new_mode);
+}
+
+static int
+print_errors_cb(const char *str, size_t len, void *u)
+{
+	Print(L"%a", str);
+
+	return len;
+}
+
+EFI_STATUS
+print_crypto_errors(EFI_STATUS rc, char *file, const char *func, int line)
+{
+	if (!(verbose && EFI_ERROR(rc)))
+		return rc;
+
+	Print(L"SSL Error: %a:%d %a(): %r\n", file, line, func, rc);
+	ERR_print_errors_cb(print_errors_cb, NULL);
+
+	return rc;
+}
+
+VOID
+msleep(unsigned long msecs)
+{
+	uefi_call_wrapper(BS->Stall, 1, msecs);
 }

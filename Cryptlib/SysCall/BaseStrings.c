@@ -1,4 +1,4 @@
-#include <CrtLibSupport.h>
+#include <OpenSslSupport.h>
 
 char *
 AsciiStrCat(char *Destination, char *Source)
@@ -64,36 +64,6 @@ AsciiStrSize(CHAR8 *string)
 	return strlena(string) + 1;
 }
 
-/* Based on AsciiStrDecimalToUintnS() in edk2
- * MdePkg/Library/BaseLib/SafeString.c */
-UINTN
-AsciiStrDecimalToUintn(const char *String)
-{
-	UINTN     Result;
-
-	if (String == NULL)
-		return 0;
-
-	/* Ignore the pad spaces (space or tab) */
-	while ((*String == ' ') || (*String == '\t')) {
-		String++;
-	}
-
-	/* Ignore leading Zeros after the spaces */
-	while (*String == '0') {
-		String++;
-	}
-
-	Result = 0;
-
-	while (*String >= '0' && *String <= '9') {
-		Result = Result * 10 + (*String - '0');
-		String++;
-	}
-
-	return Result;
-}
-
 int
 strcmp (const char *str1, const char *str2)
 {
@@ -122,4 +92,34 @@ strcasecmp (const char *str1, const char *str2)
 	}
 
 	return c1 - c2;
+}
+
+/* Based on AsciiStrDecimalToUintnS() in edk2
+ * MdePkg/Library/BaseLib/SafeString.c */
+UINTN
+AsciiStrDecimalToUintn(const char *String)
+{
+	UINTN     Result;
+
+	if (String == NULL)
+		return 0;
+
+	/* Ignore the pad spaces (space or tab) */
+	while ((*String == ' ') || (*String == '\t')) {
+		String++;
+	}
+
+	/* Ignore leading Zeros after the spaces */
+	while (*String == '0') {
+		String++;
+	}
+
+	Result = 0;
+
+	while (*String >= '0' && *String <= '9') {
+		Result = Result * 10 + (*String - '0');
+		String++;
+	}
+
+	return Result;
 }
