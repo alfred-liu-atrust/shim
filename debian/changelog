@@ -1,6 +1,6 @@
-shim (12+1503074702.5202f80-0ubuntu1~test4) UNRELEASED; urgency=medium
+shim (13~git1505328970.9c1c35c5-0ubuntu1~test1) UNRELEASED; urgency=medium
 
-  * New upstream snapshot: 12+1503074702.5202f80.
+  * New upstream snapshot: 13~git1505328970.9c1c35c5
   * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
   * debian/control: add a Build-Depends on libelf-dev.
   * debian/rules:
