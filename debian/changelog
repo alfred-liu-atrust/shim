@@ -19,8 +19,6 @@ shim (12+1503074702.5202f80-0ubuntu1~test4) UNRELEASED; urgency=medium
   * debian/patches/sbsigntool-no-pesign: dropped; no longer needed..
   * debian/patches/0001-shim-fix-the-mirroring-MokSBState-fail.patch: dropped,
     included upstream.
-  * debian/patches/fix_makefile_phony.patch: fix a makefile bug causing shim
-    to fail to build, because it gets confused about the .signed efi files.
   * debian/rules: clean up after *.signed files.
   * debian/shim.install: update paths in light of using shim's upstream install
     target.
