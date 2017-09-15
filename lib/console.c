@@ -312,8 +312,7 @@ console_errorbox(CHAR16 *err)
 
 	err_arr[2] = err;
 
-	//console_alertbox(err_arr);
-	Print(L"%s\n", err_arr[2]);
+	console_alertbox(err_arr);
 }
 
 void
@@ -326,8 +325,7 @@ console_notify(CHAR16 *string)
 
 	str_arr[0] = string;
 
-	//console_alertbox(str_arr);
-	Print(L"%s\n", str_arr[0]);
+	console_alertbox(str_arr);
 }
 
 #define ARRAY_SIZE(a) (sizeof (a) / sizeof ((a)[0]))
@@ -406,8 +404,7 @@ console_error(CHAR16 *err, EFI_STATUS status)
 
 	err_arr[2] = str;
 
-	//console_alertbox(err_arr);
-	Print(L"%s\n", err_arr[2]);
+	console_alertbox(err_arr);
 }
 
 void
