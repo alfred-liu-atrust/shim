@@ -68,6 +68,9 @@ PrintErrors(VOID)
 {
 	UINTN i;
 
+	if (!verbose)
+		return;
+
 	for (i = 0; i < nerrs; i++)
 		Print(L"%s", errs[i]);
 }
