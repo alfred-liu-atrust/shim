@@ -3,6 +3,8 @@ shim (13~git1505328971.0780644a-0ubuntu1~test1) UNRELEASED; urgency=medium
   * New upstream snapshot: 13~git1505328971.0780644a
   * debian/control: add a Build-Depends on libnss3-tools for pk12-util.
   * debian/control: add a Build-Depends on libelf-dev.
+  * debian/control: add Breaks: for the previous shim-signed builds given
+    that shim will now build and ship BOOT.CSV by itself.
   * debian/rules:
     - Update dh_auto_build/dh_auto_clean/dh_auto_install for new upstream
       options: set MAKELEVEL.

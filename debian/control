@@ -10,6 +10,7 @@ Vcs-Bzr: lp:~ubuntu-core-dev/shim/trunk
 Package: shim
 Architecture: amd64
 Depends: ${shlibs:Depends}, ${misc:Depends}
+Breaks: shim-signed (<< 1.33~)
 Description: boot loader to chain-load signed boot loaders under Secure Boot
  This package provides a minimalist boot loader which allows verifying
  signatures of other UEFI binaries against either the Secure Boot DB/DBX or
