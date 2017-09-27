@@ -1,6 +1,6 @@
-shim (13~git1505328971.0780644a-0ubuntu1~test1) UNRELEASED; urgency=medium
+shim (13~git1506531982.23ce039-0ubuntu1~test1) UNRELEASED; urgency=medium
 
-  * New upstream snapshot: 13~git1505328971.0780644a
+  * New upstream snapshot: 13~git1506531982.23ce039
   * debian/control: add a Build-Depends on libelf-dev.
   * debian/control: add Breaks: for the previous shim-signed builds given
     that shim will now build and ship BOOT.CSV by itself.
