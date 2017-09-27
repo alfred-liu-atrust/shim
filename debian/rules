@@ -25,6 +25,8 @@ COMMON_OPTIONS = \
 	EFIDIR=$(distributor) \
 	$(NULL)
 
+CPPFLAGS += -Wno-error=unused-variable
+
 %:
 	dh $@ --parallel
 
