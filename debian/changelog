@@ -23,8 +23,6 @@ shim (13-0ubuntu1) UNRELEASED; urgency=medium
   * debian/rules: clean up after *.signed files.
   * debian/shim.install: update paths in light of using shim's upstream install
     target.
-  * debian/patches/buildid_write_return.patch: workaround our strict compile
-    rules failing the build: make sure write calls check the return value.
   * debian/rules, debian/shim.install: make sure the 'make install' step does
     what it's meant to do by upstream: we can easily make use of the end result
     to have the files we need.
