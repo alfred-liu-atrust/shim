@@ -1,4 +1,0 @@
-/boot/efi/EFI/*/shim*.efi /usr/lib/shim
-/boot/efi/EFI/*/mm*.efi /usr/lib/shim
-/boot/efi/EFI/*/fb*.efi /usr/lib/shim
-/boot/efi/EFI/*/BOOT*.CSV /usr/lib/shim
