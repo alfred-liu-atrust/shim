@@ -15,7 +15,6 @@ shim (13-0ubuntu1) UNRELEASED; urgency=medium
       at compile-time for MokManager and fallback.
     - Set ENABLE_SBSIGN, to use sbsign instead of pesign for signing fallback
       and MokManager.
-    - Ignore unused-variable errors.
   * debian/patches/second-stage-path: dropped; the default loader path now
     includes an arch suffix.
   * debian/patches/sbsigntool-no-pesign: dropped; no longer needed..
