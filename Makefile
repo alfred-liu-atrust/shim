@@ -1,4 +1,4 @@
-VERSION		= 12
+VERSION		= 13
 ifneq ($(origin RELEASE),undefined)
 DASHRELEASE	?= -$(RELEASE)
 else
@@ -171,7 +171,7 @@ shim.cer: shim.crt
 
 .NOTPARALLEL: shim_cert.h
 shim_cert.h: shim.cer
-	echo "static UINT8 shim_cert[] = {" > $@
+	echo "static UINT8 shim_cert[] __attribute__((__unused__)) = {" > $@
 	$(HEXDUMP) -v -e '1/1 "0x%02x, "' $< >> $@
 	echo "};" >> $@
 
@@ -337,7 +337,7 @@ clean:
 	$(MAKE) -C Cryptlib/OpenSSL -f $(TOPDIR)/Cryptlib/OpenSSL/Makefile clean
 	$(MAKE) -C lib -f $(TOPDIR)/lib/Makefile clean
 	rm -rf $(TARGET) $(OBJS) $(MOK_OBJS) $(FALLBACK_OBJS) $(KEYS) certdb $(BOOTCSVNAME)
-	rm -f *.debug *.so *.efi *.efi.* *.tar.* version.c
+	rm -f *.debug *.so *.efi *.efi.* *.tar.* version.c buildid
 
 GITTAG = $(VERSION)
 
