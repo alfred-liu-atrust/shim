@@ -1,4 +1,4 @@
-shim (13-0ubuntu1) UNRELEASED; urgency=medium
+shim (13-0ubuntu1) artful; urgency=medium
 
   * New upstream release: 13
   * debian/control: add a Build-Depends on libelf-dev.
@@ -26,7 +26,7 @@ shim (13-0ubuntu1) UNRELEASED; urgency=medium
     what it's meant to do by upstream: we can easily make use of the end result
     to have the files we need.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 29 Aug 2017 22:45:30 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Fri, 29 Sep 2017 15:11:28 -0400
 
 shim (0.9+1474479173.6c180c6-1ubuntu1) zesty; urgency=medium
 
