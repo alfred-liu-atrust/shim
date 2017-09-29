@@ -30,7 +30,6 @@ COMMON_OPTIONS = \
 
 override_dh_auto_clean:
 	dh_auto_clean -- MAKELEVEL=0
-	rm -f *.signed
 
 override_dh_auto_build:
 	dh_auto_build -- $(COMMON_OPTIONS)

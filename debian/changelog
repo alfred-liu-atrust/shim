@@ -20,7 +20,6 @@ shim (13-0ubuntu1) UNRELEASED; urgency=medium
   * debian/patches/sbsigntool-no-pesign: dropped; no longer needed..
   * debian/patches/0001-shim-fix-the-mirroring-MokSBState-fail.patch: dropped,
     included upstream.
-  * debian/rules: clean up after *.signed files.
   * debian/shim.install: update paths in light of using shim's upstream install
     target.
   * debian/rules, debian/shim.install: make sure the 'make install' step does
