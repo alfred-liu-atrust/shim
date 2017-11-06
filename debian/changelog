@@ -1,3 +1,11 @@
+shim (13-0ubuntu2) UNRELEASED; urgency=medium
+
+  * debian/patches/abort_abort_abort.patch: signtool.exe isn't happy with some
+    of the structure of our binary, partly because abort() is thought to be an
+    external symbol, which causes some relocalisations to appear.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Mon, 06 Nov 2017 09:13:01 -0500
+
 shim (13-0ubuntu1) artful; urgency=medium
 
   * New upstream release: 13
