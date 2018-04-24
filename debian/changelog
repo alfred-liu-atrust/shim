@@ -1,6 +1,10 @@
 shim (13-0ubuntu3) UNRELEASED; urgency=medium
 
+  [ Steve Langasek ]
   * Fix Vcs link.
+
+  [ dann frazier ]
+  * Enable arm64 build.
 
  -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 23 Apr 2018 18:08:31 -0700
 
