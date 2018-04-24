@@ -1,3 +1,9 @@
+shim (13-0ubuntu3) UNRELEASED; urgency=medium
+
+  * Fix Vcs link.
+
+ -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 23 Apr 2018 18:08:31 -0700
+
 shim (13-0ubuntu2) bionic; urgency=medium
 
   * debian/patches/abort_abort_abort.patch: signtool.exe isn't happy with some
