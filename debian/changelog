@@ -9,6 +9,9 @@ shim (15+1531942534.dd3230d-0ubuntu1) UNRELEASED; urgency=medium
   [ Mathieu Trudel-Lapierre ]
   * New upstream snapshot.
   * debian/patches/abort_abort_abort.patch: dropped patch, included upstream.
+  * debian/rules:
+    - define RELEASE and COMMIT_ID for the snapshot.
+    - Set ENABLE_HTTPBOOT to enable the HTTP Boot feature.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 24 Jul 2018 16:24:51 -0400
 
