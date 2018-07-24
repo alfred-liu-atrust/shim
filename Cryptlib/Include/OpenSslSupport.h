@@ -17,11 +17,11 @@ WITHOUT WARRANTIES OR REPRESENTATIONS OF ANY KIND, EITHER EXPRESS OR IMPLIED.
 
 #include <efi.h>
 #include <efilib.h>
-#include <Base.h>
-#include <Library/BaseLib.h>
-#include <Library/BaseMemoryLib.h>
-#include <Library/MemoryAllocationLib.h>
-#include <Library/DebugLib.h>
+#include "Base.h"
+#include "Library/BaseLib.h"
+#include "Library/BaseMemoryLib.h"
+#include "Library/MemoryAllocationLib.h"
+#include "Library/DebugLib.h"
 
 /*
  * Include stddef.h to avoid redefining "offsetof"
@@ -380,5 +380,6 @@ extern FILE  *stdout;
 #define atoi(nptr)                        AsciiStrDecimalToUintn(nptr)
 #define gettimeofday(tvp,tz)              do { (tvp)->tv_sec = time(NULL); (tvp)->tv_usec = 0; } while (0)
 #define gmtime_r(timer,result)            (result = NULL)
+#define abort()
 
 #endif

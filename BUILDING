@@ -27,12 +27,14 @@ Variables you should set to customize the build:
 
 Variables you could set to customize the build:
 - ENABLE_SHIM_CERT
-  if this variable is defined one the make command line, shim will
+  if this variable is defined on the make command line, shim will
   generate keys during the build and sign MokManager and fallback with
   them, and the signed version will be what gets installed with the
   install targets
 - ENABLE_HTTPBOOT
   build support for http booting
+- REQUIRE_TPM
+  if tpm logging or extends return an error code, treat that as a fatal error.
 - ARCH
   This allows you to do a build for a different arch that we support.  For
   instance, on x86_64 you could do "setarch linux32 make ARCH=ia32" to get
