@@ -1,4 +1,4 @@
-shim (13-0ubuntu3) UNRELEASED; urgency=medium
+shim (15+1531942534.dd3230d-0ubuntu1) UNRELEASED; urgency=medium
 
   [ Steve Langasek ]
   * Fix Vcs link.
@@ -6,7 +6,10 @@ shim (13-0ubuntu3) UNRELEASED; urgency=medium
   [ dann frazier ]
   * Enable arm64 build.
 
- -- Steve Langasek <steve.langasek@ubuntu.com>  Mon, 23 Apr 2018 18:08:31 -0700
+  [ Mathieu Trudel-Lapierre ]
+  * New upstream snapshot.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 24 Jul 2018 16:24:51 -0400
 
 shim (13-0ubuntu2) bionic; urgency=medium
 
