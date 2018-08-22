@@ -1,4 +1,4 @@
-shim (15+1533136590.3beb971-0ubuntu1) UNRELEASED; urgency=medium
+shim (15+1533136590.3beb971-0ubuntu1) cosmic; urgency=medium
 
   [ Steve Langasek ]
   * Fix Vcs link.
@@ -15,7 +15,7 @@ shim (15+1533136590.3beb971-0ubuntu1) UNRELEASED; urgency=medium
   * debian/patches/fixup_git.patch: don't run git in clean; we're not really
     in a git tree.
 
- -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 21 Aug 2018 14:22:55 -0400
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Wed, 22 Aug 2018 10:52:10 -0400
 
 shim (13-0ubuntu2) bionic; urgency=medium
 
