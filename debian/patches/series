@@ -1,2 +1,3 @@
 fixup_git.patch
 VLogError-Avoid-NULL-pointer-dereferences-in-V-Sprin.patch
+Fix-OBJ_create-to-tolerate-a-NULL-sn-and-ln.patch

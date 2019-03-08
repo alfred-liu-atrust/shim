@@ -4,6 +4,9 @@ shim (15+1533136590.3beb971-0ubuntu2) UNRELEASED; urgency=medium
   * d/p/VLogError-Avoid-NULL-pointer-dereferences-in-V-Sprin.patch: Fix
     NULL pointer dereferences that lead to an exception error on arm64.
     (LP: #1811722)
+  * d/p/Fix-OBJ_create-to-tolerate-a-NULL-sn-and-ln.patch: Fix NULL
+    pointer dereference when calling OBJ_create() that leads to an
+    exception error on arm64. (LP: #1811901)
 
  -- dann frazier <dannf@ubuntu.com>  Mon, 14 Jan 2019 16:20:57 -0700
 
