@@ -1,4 +1,4 @@
-shim (15+1533136590.3beb971-0ubuntu2) UNRELEASED; urgency=medium
+shim (15+1533136590.3beb971-0ubuntu2) eoan; urgency=medium
 
   * debian/copyright: Update upstream source location.
   * d/p/VLogError-Avoid-NULL-pointer-dereferences-in-V-Sprin.patch: Fix
@@ -9,7 +9,7 @@ shim (15+1533136590.3beb971-0ubuntu2) UNRELEASED; urgency=medium
     exception error on arm64. (LP: #1811901)
   * debian/rules: Fix syntax of else statement when setting EFI_ARCH.
 
- -- dann frazier <dannf@ubuntu.com>  Mon, 14 Jan 2019 16:20:57 -0700
+ -- dann frazier <dannf@ubuntu.com>  Tue, 30 Apr 2019 12:45:02 -0600
 
 shim (15+1533136590.3beb971-0ubuntu1) cosmic; urgency=medium
 
