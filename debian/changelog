@@ -5,6 +5,9 @@ shim (15+1552672080.a4a1fbe-0ubuntu1~mtrudel1) UNRELEASED; urgency=medium
     debian/patches/fixup_git.patch: drop patches included in upstream.
   * debian/patches/MokManager-avoid-unaligned.patch: Fix compilation with GCC9:
     avoid -Werror=address-of-packed-member errors in MokManager.
+  * debian/patches/tpm-correctness-1.patch,
+    debian/patches/tpm-correctness-2.patch: fix issues in TPM calls to ensure
+    the measurements are consistent with what is entered in the TPM event log.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 10 Sep 2019 10:01:28 +0100
 
