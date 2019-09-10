@@ -102,11 +102,11 @@ $(MMSONAME): $(MOK_OBJS) Cryptlib/libcryptlib.a Cryptlib/OpenSSL/libopenssl.a li
 	$(LD) -o $@ $(LDFLAGS) $^ $(EFI_LIBS) lib/lib.a
 
 Cryptlib/libcryptlib.a:
-	mkdir -p Cryptlib/{Hash,Hmac,Cipher,Rand,Pk,Pem,SysCall}
+	for i in Hash Hmac Cipher Rand Pk Pem SysCall; do mkdir -p Cryptlib/$$i; done
 	$(MAKE) VPATH=$(TOPDIR)/Cryptlib TOPDIR=$(TOPDIR)/Cryptlib -C Cryptlib -f $(TOPDIR)/Cryptlib/Makefile
 
 Cryptlib/OpenSSL/libopenssl.a:
-	mkdir -p Cryptlib/OpenSSL/crypto/{x509v3,x509,txt_db,stack,sha,rsa,rc4,rand,pkcs7,pkcs12,pem,ocsp,objects,modes,md5,lhash,kdf,hmac,evp,err,dso,dh,conf,comp,cmac,buffer,bn,bio,async{,/arch},asn1,aes}/
+	for i in x509v3 x509 txt_db stack sha rsa rc4 rand pkcs7 pkcs12 pem ocsp objects modes md5 lhash kdf hmac evp err dso dh conf comp cmac buffer bn bio async/arch asn1 aes; do mkdir -p Cryptlib/OpenSSL/crypto/$$i; done
 	$(MAKE) VPATH=$(TOPDIR)/Cryptlib/OpenSSL TOPDIR=$(TOPDIR)/Cryptlib/OpenSSL -C Cryptlib/OpenSSL -f $(TOPDIR)/Cryptlib/OpenSSL/Makefile
 
 lib/lib.a: | $(TOPDIR)/lib/Makefile $(wildcard $(TOPDIR)/include/*.[ch])
@@ -189,11 +189,13 @@ endif
 ifneq ($(OBJCOPY_GTE224),1)
 	$(error objcopy >= 2.24 is required)
 endif
-	$(OBJCOPY) -j .text -j .sdata -j .data -j .data.ident \
+	$(OBJCOPY) -D -j .text -j .sdata -j .data -j .data.ident \
 		-j .dynamic -j .dynsym -j .rel* \
 		-j .rela* -j .reloc -j .eh_frame \
 		-j .vendor_cert \
 		$(FORMAT) $^ $@
+	# I am tired of wasting my time fighting binutils timestamp code.
+	dd conv=notrunc bs=1 count=4 seek=$(TIMESTAMP_LOCATION) if=/dev/zero of=$@
 
 ifneq ($(origin ENABLE_SHIM_HASH),undefined)
 %.hash : %.efi
@@ -204,7 +206,7 @@ endif
 ifneq ($(OBJCOPY_GTE224),1)
 	$(error objcopy >= 2.24 is required)
 endif
-	$(OBJCOPY) -j .text -j .sdata -j .data \
+	$(OBJCOPY) -D -j .text -j .sdata -j .data \
 		-j .dynamic -j .dynsym -j .rel* \
 		-j .rela* -j .reloc -j .eh_frame \
 		-j .debug_info -j .debug_abbrev -j .debug_aranges \
@@ -225,7 +227,7 @@ clean-shim-objs:
 	@rm -rvf $(TARGET) *.o $(SHIM_OBJS) $(MOK_OBJS) $(FALLBACK_OBJS) $(KEYS) certdb $(BOOTCSVNAME)
 	@rm -vf *.debug *.so *.efi *.efi.* *.tar.* version.c buildid
 	@rm -vf Cryptlib/*.[oa] Cryptlib/*/*.[oa]
-	@git clean -f -d -e 'Cryptlib/OpenSSL/*'
+	@if [ -d .git ] ; then git clean -f -d -e 'Cryptlib/OpenSSL/*'; fi
 
 clean: clean-shim-objs
 	$(MAKE) -C Cryptlib -f $(TOPDIR)/Cryptlib/Makefile clean
