@@ -1,0 +1,134 @@
+From 87b983069b03268ecf8d34d29e4f069f0914fd2e Mon Sep 17 00:00:00 2001
+From: Ivan Hu <ivan.hu@canonical.com>
+Date: Fri, 10 May 2019 17:50:12 +0800
+Subject: [PATCH] MokManager: console mode modification for hi-dpi screen
+ devices
+
+There are lots of hi-dpi laptops nowadays, as doing mok enrollment, the font
+is too small to see.
+https://bugs.launchpad.net/ubuntu/+source/shim/+bug/1822043
+
+This patch checks if the resolution is larger than Full HD (1920x1080) and
+current console output columns and rows is in a good mode. Then swith the
+console output to a better mode.
+
+Signed-off-by: Ivan Hu <ivan.hu@canonical.com>
+---
+ MokManager.c      |  2 ++
+ include/console.h |  2 ++
+ lib/console.c     | 76 +++++++++++++++++++++++++++++++++++++++++++++++
+ 3 files changed, 80 insertions(+)
+
+diff --git a/MokManager.c b/MokManager.c
+index d69b4dbe..5c991590 100644
+--- a/MokManager.c
++++ b/MokManager.c
+@@ -2491,6 +2491,8 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE * systab)
+ 
+ 	setup_rand();
+ 
++	console_mode_handle();
++
+ 	efi_status = check_mok_request(image_handle);
+ 
+ 	console_fini();
+diff --git a/include/console.h b/include/console.h
+index bd75eb54..7151b32e 100644
+--- a/include/console.h
++++ b/include/console.h
+@@ -40,6 +40,8 @@ int
+ console_countdown(CHAR16* title, const CHAR16* message, int timeout);
+ void
+ console_reset(void);
++void
++console_mode_handle(void);
+ #define NOSEL 0x7fffffff
+ 
+ typedef struct _EFI_CONSOLE_CONTROL_PROTOCOL   EFI_CONSOLE_CONTROL_PROTOCOL;
+diff --git a/lib/console.c b/lib/console.c
+index faf876da..56a7fa4b 100644
+--- a/lib/console.c
++++ b/lib/console.c
+@@ -484,6 +484,82 @@ console_countdown(CHAR16* title, const CHAR16* message, int timeout)
+ 	return timeout;
+ }
+ 
++#define HORIZONTAL_MAX_OK 1920
++#define VERTICAL_MAX_OK 1080
++#define COLUMNS_MAX_OK 200
++#define ROWS_MAX_OK 100
++
++void
++console_mode_handle(VOID)
++{
++	SIMPLE_TEXT_OUTPUT_INTERFACE *co = ST->ConOut;
++        EFI_GRAPHICS_OUTPUT_PROTOCOL *gop;
++        EFI_GUID gop_guid = EFI_GRAPHICS_OUTPUT_PROTOCOL_GUID;
++	EFI_GRAPHICS_OUTPUT_MODE_INFORMATION *Info;
++
++	UINTN mode_set;
++        UINTN rows, columns;
++	EFI_STATUS efi_status = EFI_SUCCESS;
++
++        efi_status = gBS->LocateProtocol(&gop_guid, NULL, (void **)&gop);
++	if (EFI_ERROR(efi_status)) {
++		console_error(L"Locate graphic output protocol fail", efi_status);
++		return;
++	}
++
++	Info = gop->Mode->Info;
++
++        /* Start verifying if we are in a resolution larger than Full HD
++         * (1920x1080). If we're not, assume we're in a good mode and do not
++         * try to change it. */
++	if (Info->HorizontalResolution <= HORIZONTAL_MAX_OK &&
++			Info->VerticalResolution <= VERTICAL_MAX_OK)
++		/* keep original mode and return */
++		return;
++
++        efi_status = co->QueryMode(co, co->Mode->Mode, &columns, &rows);
++	if (EFI_ERROR(efi_status)) {
++		console_error(L"Console query mode fail", efi_status);
++		return;
++	}
++
++	/* Verify current console output to check if the character columns and
++	 * rows in a good mode. */
++	if (columns <= COLUMNS_MAX_OK && rows <= ROWS_MAX_OK)
++		/* keep original mode and return */
++		return;
++
++	if (!console_text_mode)
++		setup_console(1);
++
++	co->Reset(co, TRUE);
++
++        /* If we reached here, then we have a high resolution screen and the text
++         * too small. Try to switch to a better mode. Mode number 2 is first non
++         * standard mode, which is provided by the device manufacturer, so it should
++         * be a good mode. */
++        if (co->Mode->MaxMode > 2)
++		mode_set = 2;
++        else
++		mode_set = 0;
++
++	efi_status = co->SetMode(co, mode_set);
++	if (EFI_ERROR(efi_status) && mode_set != 0) {
++		/* Set to 0 mode which is required that all output devices
++		 * support at least 80x25 text mode. */
++		mode_set = 0;
++		efi_status = co->SetMode(co, mode_set);
++	}
++
++	co->ClearScreen(co);
++
++	if (EFI_ERROR(efi_status)) {
++		console_error(L"Console set mode fail", efi_status);
++	}
++
++	return;
++}
++
+ #define ARRAY_SIZE(a) (sizeof (a) / sizeof ((a)[0]))
+ 
+ /* Copy of gnu-efi-3.0 with the added secure boot strings */
