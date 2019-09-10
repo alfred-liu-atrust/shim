@@ -34,6 +34,9 @@
  */
 
 #include "shim.h"
+#if defined(ENABLE_SHIM_CERT)
+#include "shim_cert.h"
+#endif /* defined(ENABLE_SHIM_CERT) */
 
 #include <stdarg.h>
 
@@ -77,6 +80,10 @@ UINT32 vendor_cert_size;
 UINT32 vendor_dbx_size;
 UINT8 *vendor_cert;
 UINT8 *vendor_dbx;
+#if defined(ENABLE_SHIM_CERT)
+UINT32 build_cert_size;
+UINT8 *build_cert;
+#endif /* defined(ENABLE_SHIM_CERT) */
 
 /*
  * indicator of how an image has been verified
@@ -152,7 +159,7 @@ allow_32_bit(void)
 #endif
 #elif defined(__i386__) || defined(__i686__)
 	return 1;
-#elif defined(__arch64__)
+#elif defined(__aarch64__)
 	return 0;
 #else /* assuming everything else is 32-bit... */
 	return 1;
@@ -1377,6 +1384,11 @@ static EFI_STATUS handle_image (void *data, unsigned int datasize,
 	 */
 	Section = context.FirstSection;
 	for (i = 0; i < context.NumberOfSections; i++, Section++) {
+		/* Don't try to copy discardable sections with zero size */
+		if ((Section->Characteristics & EFI_IMAGE_SCN_MEM_DISCARDABLE) &&
+		    !Section->Misc.VirtualSize)
+			continue;
+
 		base = ImageAddress (buffer, context.ImageSize,
 				     Section->VirtualAddress);
 		end = ImageAddress (buffer, context.ImageSize,
@@ -1640,9 +1652,11 @@ static EFI_STATUS generate_path_from_image_path(EFI_LOADED_IMAGE *li,
 		bootpath[j] = '\0';
 	}
 
-	while (*ImagePath == '\\')
-		ImagePath++;
+	for (i = 0, last = 0; i < StrLen(ImagePath); i++)
+		if (ImagePath[i] == '\\')
+			last = i + 1;
 
+	ImagePath = ImagePath + last;
 	*PathName = AllocatePool(StrSize(bootpath) + StrSize(ImagePath));
 
 	if (!*PathName) {
@@ -2114,21 +2128,32 @@ get_load_option_optional_data(UINT8 *data, UINTN data_size,
 	return EFI_SUCCESS;
 }
 
-static int is_our_path(EFI_LOADED_IMAGE *li, CHAR16 *path, UINTN len)
+static int is_our_path(EFI_LOADED_IMAGE *li, CHAR16 *path)
 {
 	CHAR16 *dppath = NULL;
+	CHAR16 *PathName = NULL;
+	EFI_STATUS efi_status;
 	int ret = 1;
 
 	dppath = DevicePathToStr(li->FilePath);
 	if (!dppath)
 		return 0;
 
+	efi_status = generate_path_from_image_path(li, path, &PathName);
+	if (EFI_ERROR(efi_status)) {
+		perror(L"Unable to generate path %s: %r\n", path,
+		       efi_status);
+		goto done;
+	}
+
 	dprint(L"dppath: %s\n", dppath);
 	dprint(L"path:   %s\n", path);
-	if (StrnCaseCmp(dppath, path, len))
+	if (StrnCaseCmp(dppath, PathName, strlen(dppath)))
 		ret = 0;
 
+done:
 	FreePool(dppath);
+	FreePool(PathName);
 	return ret;
 }
 
@@ -2317,7 +2342,7 @@ EFI_STATUS set_second_stage (EFI_HANDLE image_handle)
 
 	 * which is just cruel... So yeah, just don't use it.
 	 */
-	if (strings == 1 && is_our_path(li, start, loader_len))
+	if (strings == 1 && is_our_path(li, start))
 		return EFI_SUCCESS;
 
 	/*
@@ -2574,6 +2599,10 @@ efi_main (EFI_HANDLE passed_image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	vendor_dbx_size = cert_table.vendor_dbx_size;
 	vendor_cert = (UINT8 *)&cert_table + cert_table.vendor_cert_offset;
 	vendor_dbx = (UINT8 *)&cert_table + cert_table.vendor_dbx_offset;
+#if defined(ENABLE_SHIM_CERT)
+	build_cert_size = sizeof(shim_cert);
+	build_cert = shim_cert;
+#endif /* defined(ENABLE_SHIM_CERT) */
 	CHAR16 *msgs[] = {
 		L"import_mok_state() failed\n",
 		L"shim_int() failed\n",
@@ -2610,7 +2639,17 @@ efi_main (EFI_HANDLE passed_image_handle, EFI_SYSTEM_TABLE *passed_systab)
 	 * boot-services-only state variables are what we think they are.
 	 */
 	efi_status = import_mok_state(image_handle);
-	if (EFI_ERROR(efi_status)) {
+	if (!secure_mode() && efi_status == EFI_INVALID_PARAMETER) {
+		/*
+		 * Make copy failures fatal only if secure_mode is enabled, or
+		 * the error was anything else than EFI_INVALID_PARAMETER.
+		 * There are non-secureboot firmware implementations that don't
+		 * reserve enough EFI variable memory to fit the variable.
+		 */
+		console_print(L"Importing MOK states has failed: %s: %r\n",
+			      msgs[msg], efi_status);
+		console_print(L"Continuing boot since secure mode is disabled");
+	} else if (EFI_ERROR(efi_status)) {
 die:
 		console_print(L"Something has gone seriously wrong: %s: %r\n",
 			      msgs[msg], efi_status);
