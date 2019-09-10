@@ -1,3 +1,9 @@
+shim (15+1552672080.a4a1fbe-0ubuntu1~mtrudel1) UNRELEASED; urgency=medium
+
+  * New upstream snapshot 15+1552672080.a4a1fbe.
+
+ -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 10 Sep 2019 09:55:08 +0100
+
 shim (15+1533136590.3beb971-0ubuntu2) eoan; urgency=medium
 
   * debian/copyright: Update upstream source location.
