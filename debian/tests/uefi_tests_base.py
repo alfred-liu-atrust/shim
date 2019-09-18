@@ -146,6 +146,20 @@ class UEFITestsBase(unittest.TestCase):
         '''Assert that the VM is booted and ready for use'''
         self.assertTrue(vm.ready())
 
+
+DEFAULT_METADATA = 'instance-id: nocloud\nlocal-hostname: autopkgtest\n'
+
+DEFAULT_USERDATA = """#cloud-config
+locale: en_US.UTF-8
+password: ubuntu
+chpasswd: { expire: False }
+ssh_pwauth: True
+manage_etc_hosts: True
+runcmd:
+ - (while [ ! -e /var/lib/cloud/instance/boot-finished ]; do sleep 1; done;
+    shutdown -P now) &
+"""
+
 #
 # VM management tools
 #
@@ -158,13 +172,13 @@ class UEFIVirtualMachine(UEFITestsBase):
         self.release = lsb_release.get_os_release()['CODENAME']
         self.path = tempfile.mkstemp(dir=self.autopkgtest_dir.name)[1]
         if not base:
-            subprocess.run(['autopkgtest-buildvm-ubuntu-cloud',
-                            '-a', self.arch,
-                            '-r', self.release,
-                            '-o', self.autopkgtest_dir.name])
-            shutil.copy(os.path.join(self.autopkgtest_dir.name,
-                                    'autopkgtest-%s-%s.img' % (self.release, self.arch)),
-                        os.path.join(self.autopkgtest_dir.name, 'base.img'))
+            subprocess.run(['wget',
+                            'http://cloud-images.ubuntu.com/%s/current/%s-server-cloudimg-%s.img'
+                            % (self.release, self.release, self.arch),
+                            '-O', '%s/base.img' % self.autopkgtest_dir.name])
+            #shutil.copy(os.path.join(self.autopkgtest_dir.name,
+            #                        'autopkgtest-%s-%s.img' % (self.release, self.arch)),
+            #            os.path.join(self.autopkgtest_dir.name, 'base.img'))
         else:
             self.arch = base.arch
             shutil.copy(base.path, os.path.join(self.autopkgtest_dir.name, 'base.img'))
@@ -184,11 +198,15 @@ class UEFIVirtualMachine(UEFITestsBase):
         subprocess.run(['qemu-nbd', '--disconnect', '/dev/nbd0'])
 
     def prepare(self):
-        self._mount()
-        with open(os.path.join(self.autopkgtest_dir.name, 'img', 'etc', 'rc.local'), "w") as f:
-            subprocess.run(['echo', '#!/bin/sh\ntouch /var/log/uefi-booted\nsystemctl --force poweroff'], stdout=f)
-        os.chmod(os.path.join(self.autopkgtest_dir.name, 'img', 'etc', 'rc.local'), stat.S_IXUSR)
-        self._unmount()
+        with open(os.path.join(self.autopkgtest_dir.name, 'meta-data'), 'w') as f:
+            f.write(DEFAULT_METADATA)
+        with open(os.path.join(self.autopkgtest_dir.name, 'user-data'), 'w') as f:
+            f.write(DEFAULT_USERDATA)
+
+        subprocess.run(['genisoimage', '-output', 'cloud-init.seed',
+                        '-volid', 'cidata', '-joliet', '-rock',
+                        '-quiet', 'user-data', 'meta-data'],
+                       cwd=self.autopkgtest_dir.name)
 
     def list(self, path='/etc/'):
         self._mount()
@@ -205,18 +223,22 @@ class UEFIVirtualMachine(UEFITestsBase):
         self._unmount()
 
     def run(self):
+        self.prepare()
         # start qemu-system-$arch, output log to serial and capture to variable
         subprocess.run([self.qemu_arch, '-m', '2048', '-nographic',
                         '-serial', 'mon:stdio',
                         '-drive', 'file=%s,if=pflash,format=raw,unit=0,readonly=on' % self.uefi_code_path,
                         '-drive', 'file=%s.VARS.fd,if=pflash,format=raw,unit=1' % self.path,
                         '-drive', 'file=%s,if=none,id=harddrive0' % self.path,
-                        '-device', 'virtio-blk-pci,drive=harddrive0,bootindex=0'])
+                        '-device', 'virtio-blk-pci,drive=harddrive0,bootindex=0',
+                        '-drive', 'file=%s/cloud-init.seed,if=virtio,readonly' % self.autopkgtest_dir.name])
 
     def ready(self):
         """Returns true if the VM is booted and ready at userland"""
         # check captured serial for our marker
         self._mount()
-        result = os.path.exists(os.path.join(self.autopkgtest_dir.name, 'img', 'var', 'log', 'uefi-booted'))
+        result = os.path.exists(os.path.join(self.autopkgtest_dir.name, 'img', '/var/lib/cloud/instances/nocloud/boot-finished'))
         self._unmount()
         return result
+
+

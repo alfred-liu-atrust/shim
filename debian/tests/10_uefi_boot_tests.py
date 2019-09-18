@@ -30,7 +30,7 @@ class UEFIBootTests(UEFITestsBase):
     def setUpClass(klass):
         UEFITestsBase.setUpClass()
         klass.base_image = UEFIVirtualMachine(arch=klass.image_arch)
-        klass.base_image.prepare()
+        #klass.base_image.prepare()
 
     def testCanary(self):
         """Validate that a control/canary (unchanged) image boots fine"""
