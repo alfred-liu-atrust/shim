@@ -1,4 +1,4 @@
-shim (15+1552672080.a4a1fbe-0ubuntu1~mtrudel1) UNRELEASED; urgency=medium
+shim (15+1552672080.a4a1fbe-0ubuntu1~uefi1) UNRELEASED; urgency=medium
 
   * New upstream snapshot 15+1552672080.a4a1fbe.
   * debian/patches/VLogError-Avoid-NULL-pointer-dereferences-in-V-Sprin.patch,
@@ -8,6 +8,8 @@ shim (15+1552672080.a4a1fbe-0ubuntu1~mtrudel1) UNRELEASED; urgency=medium
   * debian/patches/tpm-correctness-1.patch,
     debian/patches/tpm-correctness-2.patch: fix issues in TPM calls to ensure
     the measurements are consistent with what is entered in the TPM event log.
+  * debian/patches/tpm-correctness-3.patch: Don't log duplicate identical
+    TPM events.
   * debian/patches/MokManager-hidpi-support.patch: Do a little bit more to
     try to get a more usable screen resolution for MokManager when running on
     HiDPI screens; by trying to detect such cases and switching to mode 0.

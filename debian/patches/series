@@ -2,4 +2,5 @@ Fix-OBJ_create-to-tolerate-a-NULL-sn-and-ln.patch
 MokManager-avoid-unaligned.patch
 tpm-correctness-1.patch
 tpm-correctness-2.patch
+tpm-correctness-3.patch
 MokManager-hidpi-support.patch
