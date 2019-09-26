@@ -13,6 +13,7 @@ shim (15+1552672080.a4a1fbe-0ubuntu1~uefi1) UNRELEASED; urgency=medium
   * debian/patches/MokManager-hidpi-support.patch: Do a little bit more to
     try to get a more usable screen resolution for MokManager when running on
     HiDPI screens; by trying to detect such cases and switching to mode 0.
+  * debian/rules: update COMMIT_ID explicitly for this new snapshot.
 
  -- Mathieu Trudel-Lapierre <cyphermox@ubuntu.com>  Tue, 10 Sep 2019 10:01:28 +0100
 
