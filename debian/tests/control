@@ -1,0 +1,23 @@
+Test-Command: 01_sanity_checks.py
+Depends: @,
+  qemu-system-arm [arm64],
+  qemu-system-x86 [amd64],
+Restrictions: allow-stderr, needs-root, isolation-machine
+
+Test-Command: 05_signature_checks.py
+Depends: @,
+  sbsigntool,
+  grub-efi-arm64-signed [arm64],
+  grub-efi-amd64-signed [amd64],
+Restrictions: allow-stderr, needs-root, isolation-machine
+
+Test-Command: 10_uefi_boot_tests.py
+Depends: @,
+  autopkgtest,
+  sbsigntool,
+  qemu-system-arm [arm64],
+  qemu-system-x86 [amd64],
+  qemu-efi-aarch64 [arm64],
+  grub-efi-arm64-signed [arm64],
+  grub-efi-amd64-signed [amd64],
+Restrictions: allow-stderr, needs-root, isolation-machine
