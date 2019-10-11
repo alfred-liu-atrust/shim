@@ -17,6 +17,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import subprocess
+import sys
 import unittest
 
 from uefi_tests_base import UEFITestsBase, UEFINotAvailable, UEFIVirtualMachine
@@ -47,3 +48,4 @@ class UEFIBootTests(UEFITestsBase):
         self.assertBoots(new_shim)
 
 
+unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

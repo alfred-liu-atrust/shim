@@ -18,6 +18,7 @@
 
 import os
 import subprocess
+import sys
 import unittest
 import tempfile
 
@@ -37,32 +38,27 @@ class TestSignatures(UEFITestsBase):
 
     def testInstalledGrubIsSigned(self):
         """Check that the GRUB copy we installed is correctly signed"""
-        installed_grub_file = Path(self.installed_grub)
+        installed_grub_file = Path(self.signed_grub_path)
         self.assertTrue(installed_grub_file.exists())
-        signed_out = subprocess.run(['sbverify', '--list', self.installed_grub],
+        signed_out = subprocess.run(['sbverify', '--list', self.signed_grub_path],
                                     stdout=subprocess.PIPE)
         self.assertIn(b'image signature issuers:', signed_out.stdout)
 
     def testGrubSignatureValid(self):
         """Ensure the installed GRUB binary from packaging is signed with the expected key"""
-        self.assertSignatureOK(self.canonical_ca, self.installed_grub)
+        self.assertSignatureOK(self.canonical_ca, self.signed_grub_path)
 
     def testInstalledShimIsSigned(self):
         """Check that the installed shim is signed"""
-        installed_shim_file = Path(self.installed_shim)
+        installed_shim_file = Path(self.signed_shim_path)
         self.assertTrue(installed_shim_file.exists())
-        signed_out = subprocess.run(['sbverify', '--list', self.installed_shim],
-                                    stdout=subprocess.PIPE)
-        self.assertIn(b'image signature issuers:', signed_out.stdout)
-        removable_shim_file = Path(self.removable_shim)
-        self.assertTrue(removable_shim_file.exists())
-        signed_out = subprocess.run(['sbverify', '--list', self.removable_shim],
+        signed_out = subprocess.run(['sbverify', '--list', self.signed_shim_path],
                                     stdout=subprocess.PIPE)
         self.assertIn(b'image signature issuers:', signed_out.stdout)
 
-    def testHaveSignedShim(self):
+    def testHaveSignedShimOnESP(self):
         """Verify that packaging has provided a signed shim"""
-        signed_shim_file = Path(self.signed_shim_path)
+        signed_shim_file = Path(self.installed_shim)
         self.assertTrue(signed_shim_file.exists())
 
     def testSignaturesExist(self):
@@ -89,3 +85,5 @@ class TestSignatures(UEFITestsBase):
                 certstore.write(pkcs7_certs.stdout)
                 self.assertSignatureOK(os.path.join(tmpdirname, 'out.crt'), self.signed_shim_path)
 
+
+unittest.main(testRunner=unittest.TextTestRunner(stream=sys.stdout, verbosity=2))

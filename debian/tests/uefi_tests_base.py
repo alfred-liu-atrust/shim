@@ -176,9 +176,6 @@ class UEFIVirtualMachine(UEFITestsBase):
                             'http://cloud-images.ubuntu.com/%s/current/%s-server-cloudimg-%s.img'
                             % (self.release, self.release, self.arch),
                             '-O', '%s/base.img' % self.autopkgtest_dir.name])
-            #shutil.copy(os.path.join(self.autopkgtest_dir.name,
-            #                        'autopkgtest-%s-%s.img' % (self.release, self.arch)),
-            #            os.path.join(self.autopkgtest_dir.name, 'base.img'))
         else:
             self.arch = base.arch
             shutil.copy(base.path, os.path.join(self.autopkgtest_dir.name, 'base.img'))
