@@ -4,3 +4,4 @@ tpm-correctness-1.patch
 tpm-correctness-2.patch
 tpm-correctness-3.patch
 MokManager-hidpi-support.patch
+fix-path-checks.patch
