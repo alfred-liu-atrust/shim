@@ -1,9 +1,9 @@
-shim (15+1552672080.a4a1fbe-0ubuntu2~uefi1) focal; urgency=medium
+shim (15+1552672080.a4a1fbe-0ubuntu2) focal; urgency=medium
 
   * d/patches/fix-path-checks.patch: Cherry-pick upstream fix for regression
     in loading fwupd, or anything else specified as an argument (LP: #1864223)
 
- -- Julian Andres Klode <juliank@ubuntu.com>  Wed, 18 Mar 2020 11:43:42 +0100
+ -- Julian Andres Klode <juliank@ubuntu.com>  Fri, 20 Mar 2020 16:19:14 +0100
 
 shim (15+1552672080.a4a1fbe-0ubuntu1) eoan; urgency=medium
 
