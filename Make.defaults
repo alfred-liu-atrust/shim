@@ -20,7 +20,7 @@ DATATARGETDIR	?= $(datadir)/$(PKGNAME)/$(VERSION)$(DASHRELEASE)/$(ARCH_SUFFIX)/
 DEBUGINFO	?= $(prefix)/lib/debug/
 DEBUGSOURCE	?= $(prefix)/src/debug/
 OSLABEL		?= $(EFIDIR)
-DEFAULT_LOADER	?= \\\\grub$(ARCH_SUFFIX).efi
+DEFAULT_LOADER	?= \\\\atrust$(ARCH_SUFFIX).efi
 DASHJ		?= -j$(shell echo $$(($$(grep -c "^model name" /proc/cpuinfo) + 1)))
 
 ARCH		?= $(shell $(CC) -dumpmachine | cut -f1 -d- | sed s,i[3456789]86,ia32,)
